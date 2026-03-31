@@ -13,10 +13,13 @@
 
     <style>
         body { font-family: 'Prompt', sans-serif; background-color: #f1f5f9; }
-        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 1.5rem; transition: all 0.3s; }
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 1.5rem; transition: all 0.3s; overflow: hidden; }
         .card:hover { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
         #loading { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; background: rgba(255,255,255,0.95); z-index: 50; }
         select { cursor: pointer; }
+        /* กำหนดความสูงกราฟให้ชัดเจน ป้องกันการซ้อนกัน */
+        .chart-container { width: 100%; height: 350px; }
+        .map-container { width: 100%; height: 550px; }
     </style>
 </head>
 <body class="text-slate-800">
@@ -34,7 +37,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-2"><i class="fa-solid fa-users-rays mr-2"></i> ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบาง</h1>
                 <p class="text-slate-500">วิเคราะห์ข้อมูล เด็ก ผู้สูงอายุ และคนพิการ ระดับประเทศและจังหวัด</p>
             </div>
-            <div class="w-full lg:w-72">
+            <div class="w-full lg:w-80">
                 <label class="block text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> เลือกจังหวัดที่ต้องการดูข้อมูล:</label>
                 <select id="province-select" onchange="onProvinceChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white">
                     <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
@@ -42,12 +45,12 @@
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="card border-l-4 border-slate-400">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-sm font-bold text-slate-500 mb-1">เป้าหมายทั้งหมด</p>
-                        <h3 class="text-3xl font-bold text-slate-700" id="kpi-total">0</h3>
+                        <h3 class="text-2xl xl:text-3xl font-bold text-slate-700" id="kpi-total">0</h3>
                         <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
                     </div>
                     <div class="p-3 bg-slate-100 rounded-lg text-slate-500"><i class="fa-solid fa-users fa-lg"></i></div>
@@ -57,7 +60,7 @@
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-sm font-bold text-emerald-600 mb-1">ดำเนินการแล้วเสร็จ</p>
-                        <h3 class="text-3xl font-bold text-emerald-600" id="kpi-completed">0</h3>
+                        <h3 class="text-2xl xl:text-3xl font-bold text-emerald-600" id="kpi-completed">0</h3>
                         <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
                     </div>
                     <div class="p-3 bg-emerald-50 rounded-lg text-emerald-500"><i class="fa-solid fa-check-double fa-lg"></i></div>
@@ -67,10 +70,20 @@
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-sm font-bold text-amber-600 mb-1">รอดำเนินการ</p>
-                        <h3 class="text-3xl font-bold text-amber-500" id="kpi-pending">0</h3>
+                        <h3 class="text-2xl xl:text-3xl font-bold text-amber-500" id="kpi-pending">0</h3>
                         <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
                     </div>
                     <div class="p-3 bg-amber-50 rounded-lg text-amber-500"><i class="fa-solid fa-hourglass-half fa-lg"></i></div>
+                </div>
+            </div>
+            <div class="card border-l-4 border-blue-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-bold text-blue-600 mb-1">ร้อยละการดำเนินการ</p>
+                        <h3 class="text-2xl xl:text-3xl font-bold text-blue-600" id="kpi-percent">0%</h3>
+                        <p class="text-xs text-slate-400 mt-1">จากเป้าหมายทั้งหมด</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-lg text-blue-500"><i class="fa-solid fa-chart-line fa-lg"></i></div>
                 </div>
             </div>
         </div>
@@ -81,25 +94,25 @@
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-lg font-bold text-slate-700"><i class="fa-solid fa-map text-indigo-500 mr-2"></i> แผนที่ผลการดำเนินงาน</h3>
                 </div>
-                <p class="text-xs text-slate-400 mb-4">💡 <span class="text-indigo-500 font-medium">เคล็ดลับ:</span> สามารถใช้เมาส์คลิกที่จังหวัดบนแผนที่ เพื่อเจาะลึกข้อมูลได้ทันที</p>
-                <div id="map-chart" class="flex-1 w-full min-h-[500px]"></div>
+                <p class="text-xs text-slate-400 mb-4">💡 <span class="text-indigo-500 font-medium">เคล็ดลับ:</span> คลิกที่จังหวัดบนแผนที่ เพื่อเจาะลึกข้อมูลได้ทันที</p>
+                <div id="map-chart" class="map-container"></div>
             </div>
 
             <div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 <div class="card flex flex-col">
                     <h3 class="text-md font-bold text-slate-700 mb-2"><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i> สัดส่วนความคืบหน้า</h3>
-                    <div id="donut-chart" class="flex-1 w-full min-h-[250px]"></div>
+                    <div id="donut-chart" class="chart-container"></div>
                 </div>
 
                 <div class="card flex flex-col">
                     <h3 class="text-md font-bold text-slate-700 mb-2"><i class="fa-solid fa-children text-rose-500 mr-2"></i> แยกตามกลุ่มเป้าหมาย</h3>
-                    <div id="type-chart" class="flex-1 w-full min-h-[250px]"></div>
+                    <div id="type-chart" class="chart-container"></div>
                 </div>
 
                 <div class="card md:col-span-2 flex flex-col">
                     <h3 class="text-md font-bold text-slate-700 mb-2"><i class="fa-solid fa-clipboard-check text-emerald-500 mr-2"></i> สถานะการคลีนซิ่งข้อมูลที่พบ</h3>
-                    <div id="status-chart" class="flex-1 w-full min-h-[300px]"></div>
+                    <div id="status-chart" class="chart-container"></div>
                 </div>
 
             </div>
@@ -122,25 +135,22 @@
             if (!name) return "";
             return name.replace('จังหวัด', '')
                        .replace('จ.', '')
-                       .replace('กรุงเทพมหานคร', 'กรุงเทพมหานคร') // เผื่อพิมพ์ กทม. ต้องเช็คด้วยมือเพิ่มถ้ามี
+                       .replace('กรุงเทพมหานคร', 'กรุงเทพมหานคร')
                        .trim();
         }
 
         async function initDashboard() {
             try {
-                // 1. ดึงแผนที่
                 const geoRes = await fetch(GEOJSON_URL);
                 thailandGeoJSON = await geoRes.json();
 
-                // 2. ดึงข้อมูล CSV
                 Papa.parse(GOOGLE_SHEET_CSV_URL, {
                     download: true,
                     header: true,
                     skipEmptyLines: true,
                     complete: function(results) {
-                        // เก็บข้อมูลไว้ในตัวแปร Global
                         globalData = results.data.map(row => ({
-                            province: cleanProvinceName(row['จังหวัด']), // ชื่อคอลัมน์ Excel: "จังหวัด"
+                            province: cleanProvinceName(row['จังหวัด']), 
                             targetType: row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || 'ไม่ระบุ', 
                             cleanStatus: row['สถานะข้อมูล'] || 'ไม่ระบุ',
                             totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 0, 10),
@@ -148,7 +158,7 @@
                         })).filter(row => row.province !== "");
 
                         populateDropdown();
-                        updateAllCharts('all'); // วาดกราฟครั้งแรก (ภาพรวม)
+                        updateAllCharts('all'); 
                         
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('main-content').style.display = 'block';
@@ -163,7 +173,6 @@
             }
         }
 
-        // 📌 สร้างตัวเลือก Dropdown อัตโนมัติจากข้อมูล
         function populateDropdown() {
             const select = document.getElementById('province-select');
             const uniqueProvinces = [...new Set(globalData.map(d => d.province))].sort();
@@ -176,61 +185,59 @@
             });
         }
 
-        // เมื่อผู้ใช้เลือก Dropdown
         function onProvinceChange() {
             const selectedProv = document.getElementById('province-select').value;
             updateAllCharts(selectedProv);
         }
 
-        // 📌 ฟังก์ชันหลัก: คำนวณและวาดกราฟทั้งหมดใหม่
         function updateAllCharts(selectedProvince) {
-            // 1. กรองข้อมูลตามจังหวัดที่เลือก
+            // 1. กรองข้อมูล
             let filteredData = globalData;
             if (selectedProvince !== 'all') {
                 filteredData = globalData.filter(d => d.province === selectedProvince);
             }
 
-            // 2. คำนวณ KPI ด้านบน
             let sumTotal = 0;
             let sumCompleted = 0;
             
-            // ข้อมูลสำหรับกราฟ
-            const typeAgg = {};   // สรุปกลุ่มเป้าหมาย (เด็ก, คนแก่)
-            const statusAgg = {}; // สรุปสถานะคลีน (ตาย, ย้าย)
-            const mapAgg = {};    // สรุปแผนที่รายจังหวัด
+            const typeAgg = {};   
+            const statusAgg = {}; 
+            const mapAgg = {};    
 
+            // 2. คำนวณข้อมูลจากข้อมูลที่ถูกกรอง (Filtered Data)
             filteredData.forEach(d => {
                 sumTotal += d.totalVulnerable;
                 sumCompleted += d.completed;
 
-                // รวมกลุ่มเป้าหมาย
+                // กราฟกลุ่มเป้าหมาย
                 if (!typeAgg[d.targetType]) typeAgg[d.targetType] = { total: 0, comp: 0 };
                 typeAgg[d.targetType].total += d.totalVulnerable;
                 typeAgg[d.targetType].comp += d.completed;
 
-                // รวมสถานะคลีนซิ่ง
-                if (!statusAgg[d.cleanStatus]) statusAgg[d.cleanStatus] = 0;
-                statusAgg[d.cleanStatus] += d.totalVulnerable;
-            });
+                // กราฟสถานะคลีนซิ่ง (📌 เงื่อนไข: ข้ามคำว่า "อื่นๆ")
+                if (d.cleanStatus && d.cleanStatus !== 'อื่นๆ') {
+                    if (!statusAgg[d.cleanStatus]) statusAgg[d.cleanStatus] = 0;
+                    statusAgg[d.cleanStatus] += d.totalVulnerable;
+                }
 
-            const sumPending = sumTotal - sumCompleted;
-            const pct = sumTotal > 0 ? Math.round((sumCompleted / sumTotal) * 100) : 0;
-
-            // อัปเดตตัวเลข KPI
-            document.getElementById('kpi-total').innerText = sumTotal.toLocaleString();
-            document.getElementById('kpi-completed').innerText = sumCompleted.toLocaleString();
-            document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
-
-            // ----------------------------------------------------
-            // 🗺️ กราฟ 1: แผนที่ (Map) - จะแสดงเฉพาะตอนดู "ภาพรวม"
-            // ----------------------------------------------------
-            // เตรียมข้อมูลแผที่ภาพรวมเสมอ เพื่อให้สามารถคลิกได้
-            globalData.forEach(d => {
+                // ข้อมูลแผนที่ (ให้โชว์เฉพาะจังหวัดที่ถูกกรอง)
                 if (!mapAgg[d.province]) mapAgg[d.province] = { vuln: 0, comp: 0 };
                 mapAgg[d.province].vuln += d.totalVulnerable;
                 mapAgg[d.province].comp += d.completed;
             });
 
+            const sumPending = sumTotal - sumCompleted;
+            const pct = sumTotal > 0 ? ((sumCompleted / sumTotal) * 100).toFixed(2) : 0;
+
+            // อัปเดต KPI
+            document.getElementById('kpi-total').innerText = sumTotal.toLocaleString();
+            document.getElementById('kpi-completed').innerText = sumCompleted.toLocaleString();
+            document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
+            document.getElementById('kpi-percent').innerText = pct + '%';
+
+            // ----------------------------------------------------
+            // 🗺️ กราฟ 1: แผนที่ (Map)
+            // ----------------------------------------------------
             const mapProvinces = Object.keys(mapAgg);
             const mapColors = mapProvinces.map(p => mapAgg[p].comp);
             const mapHover = mapProvinces.map(p => `<b>${p}</b><br>เป้าหมาย: ${mapAgg[p].vuln.toLocaleString()}<br>ทำแล้ว: ${mapAgg[p].comp.toLocaleString()}`);
@@ -254,25 +261,25 @@
                     zoom: 4.2
                 },
                 margin: { t: 0, b: 0, l: 0, r: 0 },
-                coloraxis: { showscale: false } // ซ่อนแถบสีด้านขวาให้ดูคลีนขึ้น
+                coloraxis: { showscale: false } 
             };
 
-            Plotly.react('map-chart', mapTrace, mapLayout, {displayModeBar: false});
+            // ใส่ {responsive: true} ป้องกันกราฟล้นจอ
+            Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
 
-            // 👉 เพิ่ม Event คลิกแผนที่: ถ้าคลิกแผนที่ ให้เปลี่ยน Dropdown และกรองข้อมูล
-            document.getElementById('map-chart').removeAllListeners('plotly_click'); // ล้าง event เก่ากันเบิ้ล
+            // Event คลิกแผนที่เปลี่ยน Dropdown
+            document.getElementById('map-chart').removeAllListeners('plotly_click'); 
             document.getElementById('map-chart').on('plotly_click', function(data){
                 const clickedProv = data.points[0].location;
-                // เปลี่ยนค่าใน Dropdown
                 const selectEl = document.getElementById('province-select');
                 if([...selectEl.options].some(opt => opt.value === clickedProv)) {
                     selectEl.value = clickedProv;
-                    updateAllCharts(clickedProv); // สั่งอัปเดตกราฟอื่น
+                    updateAllCharts(clickedProv); 
                 }
             });
 
             // ----------------------------------------------------
-            // 🍩 กราฟ 2: Donut Chart สัดส่วนความคืบหน้า
+            // 🍩 กราฟ 2: Donut Chart
             // ----------------------------------------------------
             const donutTrace = [{
                 values: [sumCompleted, sumPending],
@@ -286,18 +293,18 @@
             const donutLayout = { 
                 margin: { t: 10, b: 10, l: 10, r: 10 },
                 showlegend: true,
-                legend: { orientation: 'h', y: -0.1 },
-                annotations: [{ font: { size: 24, weight: 'bold' }, showarrow: false, text: pct + '%' }]
+                legend: { orientation: 'h', y: -0.2 },
+                annotations: [{ font: { size: 20, weight: 'bold' }, showarrow: false, text: pct + '%' }]
             };
-            Plotly.react('donut-chart', donutTrace, donutLayout, {displayModeBar: false});
+            Plotly.react('donut-chart', donutTrace, donutLayout, {responsive: true, displayModeBar: false});
 
             // ----------------------------------------------------
-            // 📊 กราฟ 3: Bar Chart แยกตามกลุ่มเป้าหมาย (เด็ก, คนแก่)
+            // 📊 กราฟ 3: กลุ่มเป้าหมาย
             // ----------------------------------------------------
             const types = Object.keys(typeAgg);
             const typeTrace1 = {
                 x: types, y: types.map(t => typeAgg[t].total),
-                name: 'เป้าหมายทั้งหมด', type: 'bar', marker: { color: '#e2e8f0' }
+                name: 'เป้าหมาย', type: 'bar', marker: { color: '#e2e8f0' }
             };
             const typeTrace2 = {
                 x: types, y: types.map(t => typeAgg[t].comp),
@@ -309,14 +316,13 @@
                 showlegend: true,
                 legend: { orientation: 'h', y: 1.2 }
             };
-            Plotly.react('type-chart', [typeTrace1, typeTrace2], typeLayout, {displayModeBar: false});
+            Plotly.react('type-chart', [typeTrace1, typeTrace2], typeLayout, {responsive: true, displayModeBar: false});
 
             // ----------------------------------------------------
-            // 📈 กราฟ 4: Bar Chart สถานะข้อมูลคลีนซิ่ง (แนวนอน)
+            // 📈 กราฟ 4: สถานะข้อมูลคลีนซิ่ง (เอา "อื่นๆ" ออกแล้ว)
             // ----------------------------------------------------
-            // เรียงลำดับจากมากไปน้อย
             let sortableStatus = Object.keys(statusAgg).map(k => ({ name: k, val: statusAgg[k] }));
-            sortableStatus.sort((a, b) => a.val - b.val); // Sort ascending สำหรับกราฟแนวนอนให้อันดับ 1 อยู่บน
+            sortableStatus.sort((a, b) => a.val - b.val); 
 
             const statusTrace = [{
                 y: sortableStatus.map(s => s.name),
@@ -328,13 +334,12 @@
                 textposition: 'auto'
             }];
             const statusLayout = {
-                margin: { t: 10, b: 30, l: 150, r: 20 }, // เผื่อที่ด้านซ้าย (l) ไว้แสดงข้อความยาวๆ เช่น "ย้ายที่อยู่"
+                margin: { t: 10, b: 30, l: 120, r: 20 }, 
                 xaxis: { title: 'จำนวน (คน)' }
             };
-            Plotly.react('status-chart', statusTrace, statusLayout, {displayModeBar: false});
+            Plotly.react('status-chart', statusTrace, statusLayout, {responsive: true, displayModeBar: false});
         }
 
-        // สั่งทำงานตอนเปิดเว็บ
         initDashboard();
     </script>
 </body>
