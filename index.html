@@ -20,6 +20,10 @@
         .chart-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 280px; margin-top: 0.5rem; }
         .map-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 550px; margin-top: 0.5rem; }
         .plotly-graph { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        /* จัด Logo */
+        .logo-container { width: 60px; height: 60px; border-radius: 50%; overflow: hidden; background-color: white; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px solid #e2e8f0; }
+        .logo-container img { width: 80%; height: auto; object-fit: contain; }
     </style>
 </head>
 <body class="text-slate-800">
@@ -33,11 +37,16 @@
     <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content" style="display: none;">
         
         <header class="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-2"><i class="fa-solid fa-users-rays mr-2"></i> ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบางจากระบบ MSO-LOGBOOK</h1>
-                <p class="text-slate-500">วิเคราะห์ข้อมูล เด็ก ผู้สูงอายุ และคนพิการ ระดับประเทศและจังหวัด</p>
+            <div class="flex items-center gap-4">
+                <div class="logo-container shrink-0">
+                    <img src="https://itas.nacc.go.th/home/setfontsize?fontSize=18&returnUrl=~%2Freport%2Frpt0301%3Fyear%3D2020%26ministryId%3D6%26assessmentId%3D29">
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-1">ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบางจากระบบ MSO-LOGBOOK</h1>
+                    <p class="text-slate-500 font-medium">วิเคราะห์ข้อมูล เด็ก ผู้สูงอายุ และคนพิการ ระดับประเทศและจังหวัด</p>
+                </div>
             </div>
-            <div class="w-full lg:w-80">
+            <div class="w-full lg:w-80 shrink-0 mt-4 lg:mt-0">
                 <label class="block text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> เลือกจังหวัดที่ต้องการดูข้อมูล:</label>
                 <select id="province-select" onchange="onProvinceChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
                     <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
@@ -126,19 +135,35 @@
     </div>
 
     <script>
-        // ⚠️ ลิงก์ Google Sheets CSV ของคุณ (ต้องมีคำว่า pub?output=csv)
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
-        
-        // แผนที่ GeoJSON (ส่วนใหญ่ใช้ properties.name เป็นภาษาอังกฤษ หรือคุณใช้ภาษาอะไรที่มันเวิร์ค ระบบจะจับคู่อัตโนมัติ)
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
 
         let globalData = [];
         let thailandGeoJSON = null;
+        let mapCentroids = {}; // เก็บพิกัดกึ่งกลางของแต่ละจังหวัด เอาไว้ Zoom แผนที่
 
         async function initDashboard() {
             try {
                 const geoRes = await fetch(GEOJSON_URL);
                 thailandGeoJSON = await geoRes.json();
+
+                // หาจุดกึ่งกลางของแต่ละจังหวัดจาก GeoJSON เอาไว้ซูมแผนที่ตอนเลือก Dropdown
+                thailandGeoJSON.features.forEach(f => {
+                    const nameEn = f.properties.name;
+                    let sumLon = 0, sumLat = 0, count = 0;
+                    
+                    try {
+                        const coords = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+                        coords.forEach(poly => {
+                            poly[0].forEach(pt => {
+                                sumLon += pt[0];
+                                sumLat += pt[1];
+                                count++;
+                            });
+                        });
+                        mapCentroids[nameEn] = { lon: sumLon/count, lat: sumLat/count };
+                    } catch(e) {}
+                });
 
                 Papa.parse(GOOGLE_SHEET_CSV_URL, {
                     download: true,
@@ -146,14 +171,14 @@
                     skipEmptyLines: true,
                     complete: function(results) {
                         globalData = results.data.map(row => {
-                            // 📌 1. ดึงชื่ออังกฤษไว้ใช้เป็น ID ทำแผนที่
-                            const provEn = (row['จังหวัด'] || "").trim();
-                            // 📌 2. ดึงชื่อไทยไว้โชว์บนหน้าเว็บ (ถ้าไม่มีให้ดึงชื่ออังกฤษแทนกันพลาด)
-                            const provTh = (row['ชื่อจังหวัดภาษาไทย'] || provEn).trim();
+                            // 📌 ค้นหาชื่ออังกฤษจากไฟล์ Google Sheet เพื่อเชื่อมแผนที่ (ถ้าหาไม่ได้ให้เว้นว่างไว้ก่อน)
+                            const rawProvEn = (row['จังหวัด'] || "").trim();
+                            // 📌 โชว์ชื่อไทยจากคอลัมน์ชื่อจังหวัดภาษาไทย (ถ้าในไฟล์ไม่มีให้โชว์ตามข้อมูลดิบ)
+                            const rawProvTh = (row['ชื่อจังหวัดภาษาไทย'] || rawProvEn).trim();
                             
                             return {
-                                provinceEn: provEn,    // ใช้แมปกับ GeoJSON
-                                provinceTh: provTh,    // ใช้โชว์บนเว็บ
+                                provinceEn: rawProvEn,
+                                provinceTh: rawProvTh,
                                 targetType: row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || 'ไม่ระบุ', 
                                 cleanStatus: row['สถานะข้อมูล'] || 'ไม่ระบุ',
                                 totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 0, 10),
@@ -183,7 +208,6 @@
         function populateDropdown() {
             const select = document.getElementById('province-select');
             
-            // ดึงรายชื่อจังหวัดที่ไม่ซ้ำ โดยจับคู่ Eng และ Thai
             const provMap = new Map();
             globalData.forEach(d => {
                 if (!provMap.has(d.provinceEn)) {
@@ -191,27 +215,40 @@
                 }
             });
 
-            // เรียงลำดับตามตัวอักษรภาษาไทย ก-ฮ
             const sortedProvinces = Array.from(provMap.entries()).sort((a, b) => a[1].localeCompare(b[1], 'th'));
 
             sortedProvinces.forEach(([en, th]) => {
                 const opt = document.createElement('option');
-                opt.value = en; // ค่า value ที่ส่งไปกรองใช้ภาษาอังกฤษ
-                opt.textContent = `📍 ${th}`; // ค่าที่ตาเห็นใช้ภาษาไทย
+                opt.value = en;
+                opt.textContent = `📍 ${th}`;
                 select.appendChild(opt);
             });
         }
 
         function onProvinceChange() {
-            // ดึงค่า value (ภาษาอังกฤษ) เพื่อไปกรอง
             const selectedProvEn = document.getElementById('province-select').value;
+            
+            // อัปเดตกราฟทั้งหมด
             updateAllCharts(selectedProvEn);
+
+            // 📌 ซูมและเคลื่อนแผนที่ไปหาจังหวัดที่เลือก
+            const mapDiv = document.getElementById('map-chart');
+            if (selectedProvEn === 'all') {
+                Plotly.relayout(mapDiv, {
+                    'mapbox.center': { lat: 13.0, lon: 100.5 },
+                    'mapbox.zoom': 4.5
+                });
+            } else if (mapCentroids[selectedProvEn]) {
+                Plotly.relayout(mapDiv, {
+                    'mapbox.center': mapCentroids[selectedProvEn],
+                    'mapbox.zoom': 7 // ซูมเข้าไปใกล้ขึ้น
+                });
+            }
         }
 
         function drawMap() {
             const mapAgg = {};
             globalData.forEach(d => {
-                // อ้างอิงด้วยภาษาอังกฤษ เพื่อให้ตรงกับแผนที่
                 if (!mapAgg[d.provinceEn]) {
                     mapAgg[d.provinceEn] = { thName: d.provinceTh, vuln: 0, comp: 0 };
                 }
@@ -227,7 +264,6 @@
                 return vuln > 0 ? (comp / vuln) * 100 : 0; 
             });
 
-            // สร้าง Tooltip โดยใช้ .thName (ชื่อไทย)
             const mapHover = mapProvincesEn.map(pEn => {
                 const thName = mapAgg[pEn].thName;
                 const vuln = mapAgg[pEn].vuln;
@@ -236,18 +272,19 @@
                 return `<b>${thName}</b><br>เป้าหมาย: ${vuln.toLocaleString()} คน<br>ทำแล้ว: ${comp.toLocaleString()} คน<br><b>ความสำเร็จ: ${pct}%</b>`;
             });
 
+            // 📌 เปลี่ยนแผนที่เป็นโทนสีเย็น (Blues) ตามต้องการ
             const mapTrace = [{
                 type: 'choroplethmapbox',
                 geojson: thailandGeoJSON,
-                locations: mapProvincesEn, // จับคู่ตำแหน่งด้วยภาษาอังกฤษ
+                locations: mapProvincesEn, 
                 featureidkey: 'properties.name', 
                 z: mapColors, 
-                colorscale: 'algae', 
+                colorscale: 'Blues', // <-- สีโทนเย็น (ขาว -> ฟ้า -> น้ำเงิน)
                 zmin: 0,   
                 zmax: 100, 
-                text: mapHover, // แสดงผลข้อความด้วยภาษาไทย
+                text: mapHover,
                 hoverinfo: 'text',
-                marker: { opacity: 0.8, line: {width: 0.5, color: '#cbd5e1'} }
+                marker: { opacity: 0.85, line: {width: 0.8, color: '#e2e8f0'} } // ตัดขอบสีเทาอ่อนให้จังหวัดดูชัดขึ้น
             }];
 
             const mapLayout = {
@@ -264,20 +301,19 @@
 
             Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
 
-            // เมื่อคลิกที่แผนที่ ให้อัปเดต Dropdown (โดยใช้ Value ภาษาอังกฤษ)
             document.getElementById('map-chart').on('plotly_click', function(data){
                 const clickedProvEn = data.points[0].location;
                 const selectEl = document.getElementById('province-select');
                 if([...selectEl.options].some(opt => opt.value === clickedProvEn)) {
                     selectEl.value = clickedProvEn;
-                    updateAllCharts(clickedProvEn); 
+                    // อัปเดตกราฟ และสั่งแผนที่ซูมตามด้วย (เรียกใช้ onProvinceChange เพื่อให้ทำงานครบวงจร)
+                    onProvinceChange(); 
                 }
             });
         }
 
         function updateAllCharts(selectedProvinceEn) {
             let filteredData = globalData;
-            // กรองด้วยภาษาอังกฤษ
             if (selectedProvinceEn !== 'all') {
                 filteredData = globalData.filter(d => d.provinceEn === selectedProvinceEn);
             }
@@ -341,7 +377,7 @@
             };
             const typeTrace2 = {
                 x: types, y: types.map(t => typeAgg[t].comp),
-                name: 'ทำแล้ว', type: 'bar', marker: { color: '#ec4899' } 
+                name: 'ทำแล้ว', type: 'bar', marker: { color: '#3b82f6' } // 📌 เปลี่ยนสีกราฟทำแล้วให้เป็นโทนฟ้าเข้ากับธีม
             };
             const typeLayout = {
                 ...defaultLayout,
