@@ -145,6 +145,12 @@
         let thailandGeoJSON = null;
         let mapCentroids = {}; 
 
+        // 📌 ตั้งค่าฟอนต์ Prompt เป็นค่าเริ่มต้นสำหรับกราฟทั้งหมด
+        const fontConfig = {
+            family: "'Prompt', sans-serif",
+            color: '#475569'
+        };
+
         function cleanProvinceName(name) {
             if (!name) return "";
             return name.replace('จังหวัด', '')
@@ -161,7 +167,6 @@
                 thailandGeoJSON.features.forEach(f => {
                     const nameEn = f.properties.name;
                     let sumLon = 0, sumLat = 0, count = 0;
-                    
                     try {
                         const coords = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
                         coords.forEach(poly => {
@@ -235,7 +240,6 @@
 
         function onProvinceChange() {
             const selectedProvEn = document.getElementById('province-select').value;
-            
             updateAllCharts(selectedProvEn);
             drawMap(selectedProvEn);
         }
@@ -291,21 +295,16 @@
                 locations: mapProvincesEn, 
                 featureidkey: 'properties.name', 
                 z: mapColors, 
-                colorscale: [
-                    [0, '#e0f2fe'],    
-                    [0.2, '#bae6fd'], 
-                    [0.5, '#38bdf8'],  
-                    [0.8, '#0284c7'], 
-                    [1, '#0369a1']     
-                ], 
-                zmin: 0,   
-                zmax: 100, 
+                colorscale: 'Blues', // 📌 กลับมาใช้สีโทนเย็น (Blues) แบบไล่สีอัตโนมัติ
+                zmin: 0,   // ล็อค 0% ให้อ่อนสุด
+                zmax: 100, // ล็อค 100% ให้เข้มสุด
                 text: mapHover,
                 hoverinfo: 'text',
                 marker: { opacity: 0.85, line: {width: 0.8, color: '#94a3b8'} } 
             }];
 
             const mapLayout = {
+                font: fontConfig, // 📌 บังคับฟอนต์ Prompt ให้แผนที่
                 mapbox: {
                     style: 'carto-positron',
                     center: mapCenter, 
@@ -314,7 +313,8 @@
                 margin: { t: 0, b: 0, l: 0, r: 0 },
                 coloraxis: { showscale: false },
                 paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)'
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                hoverlabel: { font: fontConfig } // 📌 บังคับฟอนต์ป๊อปอัป
             };
 
             Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
@@ -364,10 +364,13 @@
             document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
             document.getElementById('kpi-percent').innerText = pct + '%';
 
+            // 📌 บังคับตั้งค่าฟอนต์ให้กราฟทั้งหมดที่นี่
             const defaultLayout = {
+                font: fontConfig,
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                margin: { t: 20, b: 30, l: 40, r: 20 }
+                margin: { t: 20, b: 30, l: 40, r: 20 },
+                hoverlabel: { font: fontConfig }
             };
 
             const donutTrace = [{
@@ -384,7 +387,7 @@
                 ...defaultLayout,
                 margin: { t: 20, b: 20, l: 20, r: 20 },
                 showlegend: false, 
-                annotations: [{ font: { size: 22, weight: 'bold', color: '#1e293b' }, showarrow: false, text: pct + '%' }]
+                annotations: [{ font: { family: "'Prompt', sans-serif", size: 22, weight: 'bold', color: '#1e293b' }, showarrow: false, text: pct + '%' }]
             };
             Plotly.react('donut-chart', donutTrace, donutLayout, {responsive: true, displayModeBar: false});
 
