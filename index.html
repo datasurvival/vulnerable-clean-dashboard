@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แดชบอร์ดกลุ่มเปราะบาง</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        body { font-family: 'Prompt', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 1.5rem; }
+        #loading { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; background: rgba(255,255,255,0.9); z-index: 50; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="loading">
+        <div class="text-center">
+            <i class="fa-solid fa-circle-notch fa-spin text-indigo-600 text-5xl mb-4"></i>
+            <h2 class="text-xl font-bold text-slate-700">กำลังดึงข้อมูล...</h2>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content" style="display: none;">
+        
+        <header class="mb-8">
+            <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-2">📊 แดชบอร์ดติดตามผลการช่วยเหลือกลุ่มเปราะบาง</h1>
+            <p class="text-slate-500">รายงานสรุปผลการดำเนินงานระดับประเทศ สำหรับผู้บริหาร</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card border-l-4 border-slate-400">
+                <p class="text-sm font-medium text-slate-500 mb-1">👥 จำนวนคนเปราะบางทั้งหมด</p>
+                <h3 class="text-3xl font-bold text-slate-700" id="kpi-total">0</h3>
+                <p class="text-xs text-slate-400 mt-2">คน</p>
+            </div>
+            <div class="card border-l-4 border-emerald-500">
+                <p class="text-sm font-medium text-slate-500 mb-1">✅ ดำเนินการแล้วเสร็จ</p>
+                <h3 class="text-3xl font-bold text-emerald-600" id="kpi-completed">0</h3>
+                <p class="text-xs text-slate-400 mt-2">คน</p>
+            </div>
+            <div class="card border-l-4 border-blue-500">
+                <p class="text-sm font-medium text-slate-500 mb-1">📈 ความคืบหน้า</p>
+                <h3 class="text-3xl font-bold text-blue-600" id="kpi-percent">0%</h3>
+                <p class="text-xs text-slate-400 mt-2">จากเป้าหมายทั้งหมด</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="card">
+                <h3 class="text-lg font-bold text-slate-700 mb-4"><i class="fa-solid fa-map-location-dot text-indigo-500 mr-2"></i> แผนที่ความคืบหน้ารายจังหวัด</h3>
+                <div id="map-chart" style="width: 100%; height: 500px;"></div>
+            </div>
+
+            <div class="card">
+                <h3 class="text-lg font-bold text-slate-700 mb-4"><i class="fa-solid fa-chart-column text-indigo-500 mr-2"></i> 10 จังหวัดที่ดำเนินการได้มากที่สุด</h3>
+                <div id="bar-chart" style="width: 100%; height: 500px;"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 📌 1. นำลิงก์ Google Sheets (แบบ CSV) ของคุณมาวางตรงนี้
+        // ตัวอย่าง: 'https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?output=csv'
+        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
+        
+        // ลิงก์แผนที่ประเทศไทย (GeoJSON)
+        const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
+
+        async function initDashboard() {
+            try {
+                // 1. ดึงข้อมูลแผนที่ (GeoJSON)
+                const geoRes = await fetch(GEOJSON_URL);
+                const thailandGeoJSON = await geoRes.json();
+
+                // 2. ดึงข้อมูลจาก Google Sheets ด้วย PapaParse
+                Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                    download: true,
+                    header: true,
+                    complete: function(results) {
+                        processData(results.data, thailandGeoJSON);
+                    },
+                    error: function(err) {
+                        alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้ โปรดตรวจสอบลิงก์");
+                        console.error(err);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error init:", error);
+            }
+        }
+
+        function processData(rawData, geojson) {
+            // กรองเฉพาะแถวที่มีข้อมูลจังหวัด
+            const validData = rawData.filter(row => row['จังหวัด']);
+
+            let totalVulnerable = 0;
+            let totalCompleted = 0;
+            const provinceData = {};
+
+            // คำนวณยอดรวม และรวมกลุ่มระดับจังหวัด
+            validData.forEach(row => {
+                const prov = row['จังหวัด'].trim();
+                // แปลงค่าให้เป็นตัวเลข
+                const vuln = parseInt(row['จำนวนคนเปราะบาง'] || 0, 10);
+                const comp = parseInt(row['จำนวนที่ดำเนินการแล้ว'] || 0, 10);
+
+                totalVulnerable += vuln;
+                totalCompleted += comp;
+
+                if (!provinceData[prov]) {
+                    provinceData[prov] = { vulnerable: 0, completed: 0 };
+                }
+                provinceData[prov].vulnerable += vuln;
+                provinceData[prov].completed += comp;
+            });
+
+            // อัปเดต KPI บนหน้าเว็บ
+            document.getElementById('kpi-total').innerText = totalVulnerable.toLocaleString();
+            document.getElementById('kpi-completed').innerText = totalCompleted.toLocaleString();
+            const pct = totalVulnerable > 0 ? ((totalCompleted / totalVulnerable) * 100).toFixed(2) : 0;
+            document.getElementById('kpi-percent').innerText = pct + '%';
+
+            // เตรียมข้อมูลสำหรับวาดกราฟ
+            const provNames = Object.keys(provinceData);
+            const provVuln = provNames.map(p => provinceData[p].vulnerable);
+            const provComp = provNames.map(p => provinceData[p].completed);
+
+            // สร้าง Tooltip Text สำหรับแผนที่
+            const hoverText = provNames.map(p => {
+                return `เปราะบางทั้งหมด: ${provinceData[p].vulnerable.toLocaleString()} คน<br>ดำเนินการแล้ว: ${provinceData[p].completed.toLocaleString()} คน`;
+            });
+
+            // ----------------------------------------------------
+            // วาดแผนที่ Heatmap
+            // ----------------------------------------------------
+            const mapData = [{
+                type: 'choroplethmapbox',
+                geojson: geojson,
+                locations: provNames,
+                featureidkey: 'properties.name', // แมปชื่อจังหวัด
+                z: provComp, // ใช้จำนวนที่ทำเสร็จเป็นสี
+                colorscale: 'Blues',
+                text: hoverText,
+                hoverinfo: 'location+text',
+                marker: { opacity: 0.8, line: {width: 0.5, color: '#e2e8f0'} }
+            }];
+
+            const mapLayout = {
+                mapbox: {
+                    style: 'carto-positron',
+                    center: { lat: 13.5, lon: 100.5 },
+                    zoom: 4.5
+                },
+                margin: { t: 0, b: 0, l: 0, r: 0 },
+                coloraxis: { showscale: true }
+            };
+
+            Plotly.newPlot('map-chart', mapData, mapLayout, {displayModeBar: false});
+
+            // ----------------------------------------------------
+            // วาดกราฟแท่ง 10 อันดับ
+            // ----------------------------------------------------
+            // สร้าง Array เพื่อนำไป Sort หา 10 อันดับแรก
+            let sortable = provNames.map(p => ({
+                name: p,
+                vulnerable: provinceData[p].vulnerable,
+                completed: provinceData[p].completed
+            }));
+            
+            sortable.sort((a, b) => b.completed - a.completed);
+            const top10 = sortable.slice(0, 10);
+
+            // กลับหัว Array เพื่อให้แท่งที่มากที่สุดอยู่ด้านบน
+            top10.reverse();
+
+            const barTrace1 = {
+                x: top10.map(d => d.vulnerable),
+                y: top10.map(d => d.name),
+                name: 'เปราะบางทั้งหมด',
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: '#e2e8f0' }
+            };
+
+            const barTrace2 = {
+                x: top10.map(d => d.completed),
+                y: top10.map(d => d.name),
+                name: 'ดำเนินการแล้ว',
+                type: 'bar',
+                orientation: 'h',
+                marker: { color: '#3b82f6' }
+            };
+
+            const barLayout = {
+                barmode: 'group',
+                margin: { t: 20, l: 100, r: 20, b: 40 },
+                legend: { orientation: 'h', y: 1.1 },
+                xaxis: { title: 'จำนวน (คน)' }
+            };
+
+            Plotly.newPlot('bar-chart', [barTrace1, barTrace2], barLayout, {displayModeBar: false});
+
+            // ปิดหน้าจอโหลดและแสดงเนื้อหา
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+        }
+
+        // เริ่มทำงานเมื่อเปิดหน้าเว็บ
+        initDashboard();
+    </script>
+</body>
+</html>
