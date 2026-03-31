@@ -138,6 +138,7 @@
     </div>
 
     <script>
+        // ⚠️ ลิงก์ Google Sheets CSV ของคุณ
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
 
@@ -145,10 +146,21 @@
         let thailandGeoJSON = null;
         let mapCentroids = {}; 
 
-        // 📌 ตั้งค่าฟอนต์ Prompt เป็นค่าเริ่มต้นสำหรับกราฟทั้งหมด
+        // 📌 ตั้งค่าฟอนต์ Prompt เป็นค่าเริ่มต้น
         const fontConfig = {
             family: "'Prompt', sans-serif",
             color: '#475569'
+        };
+
+        // 📌 ตั้งค่า Tooltip พื้นหลังสีขาว ตัวหนังสือสีดำ (ใช้ร่วมกันทุกกราฟ)
+        const tooltipConfig = {
+            bgcolor: '#ffffff',
+            bordercolor: '#cbd5e1',
+            font: {
+                family: "'Prompt', sans-serif",
+                size: 13,
+                color: '#0f172a' // สีดำอมน้ำเงินเข้ม
+            }
         };
 
         function cleanProvinceName(name) {
@@ -295,16 +307,24 @@
                 locations: mapProvincesEn, 
                 featureidkey: 'properties.name', 
                 z: mapColors, 
-                colorscale: 'Blues', // 📌 กลับมาใช้สีโทนเย็น (Blues) แบบไล่สีอัตโนมัติ
-                zmin: 0,   // ล็อค 0% ให้อ่อนสุด
-                zmax: 100, // ล็อค 100% ให้เข้มสุด
+                // 📌 บังคับสี 0% คือฟ้าอ่อนสุด 100% คือน้ำเงินเข้มสุด
+                colorscale: [
+                    [0, '#eff6ff'],   // 0%
+                    [0.25, '#bae6fd'],
+                    [0.5, '#38bdf8'],
+                    [0.75, '#0284c7'],
+                    [1, '#0c4a6e']    // 100%
+                ], 
+                zmin: 0,   
+                zmax: 100, 
                 text: mapHover,
                 hoverinfo: 'text',
                 marker: { opacity: 0.85, line: {width: 0.8, color: '#94a3b8'} } 
             }];
 
             const mapLayout = {
-                font: fontConfig, // 📌 บังคับฟอนต์ Prompt ให้แผนที่
+                font: fontConfig,
+                hoverlabel: tooltipConfig, // 📌 ใส่พื้นหลังสีขาวให้ Tooltip แผนที่
                 mapbox: {
                     style: 'carto-positron',
                     center: mapCenter, 
@@ -313,8 +333,7 @@
                 margin: { t: 0, b: 0, l: 0, r: 0 },
                 coloraxis: { showscale: false },
                 paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                hoverlabel: { font: fontConfig } // 📌 บังคับฟอนต์ป๊อปอัป
+                plot_bgcolor: 'rgba(0,0,0,0)'
             };
 
             Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
@@ -364,13 +383,13 @@
             document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
             document.getElementById('kpi-percent').innerText = pct + '%';
 
-            // 📌 บังคับตั้งค่าฟอนต์ให้กราฟทั้งหมดที่นี่
+            // 📌 เลย์เอาต์มาตรฐานสำหรับกราฟขวามือทั้งหมด (พร้อม Tooltip สีขาว)
             const defaultLayout = {
                 font: fontConfig,
+                hoverlabel: tooltipConfig, // 📌 บังคับพื้นสีขาว ตัวหนังสือสีดำ
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                margin: { t: 20, b: 30, l: 40, r: 20 },
-                hoverlabel: { font: fontConfig }
+                margin: { t: 20, b: 30, l: 40, r: 20 }
             };
 
             const donutTrace = [{
