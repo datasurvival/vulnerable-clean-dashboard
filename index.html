@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แดชบอร์ดกลุ่มเปราะบาง (Interactive)</title>
+    <title>แดชบอร์ดกลุ่มเปราะบาง (Interactive 100%)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -29,7 +29,7 @@
 
     <div id="loading">
         <i class="fa-solid fa-spinner fa-spin text-indigo-600 text-5xl mb-4"></i>
-        <h2 class="text-xl font-bold text-slate-700">กำลังดึงข้อมูลและสร้างแผนที่...</h2>
+        <h2 class="text-xl font-bold text-slate-700">กำลังดึงข้อมูลและสร้างแดชบอร์ด...</h2>
         <p class="text-slate-500 text-sm mt-2">โปรดรอสักครู่</p>
     </div>
 
@@ -47,11 +47,22 @@
             </div>
             <div class="w-full lg:w-80 shrink-0 mt-4 lg:mt-0">
                 <label class="block text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> เลือกจังหวัดที่ต้องการดูข้อมูล:</label>
-                <select id="province-select" onchange="onProvinceChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
+                <select id="province-select" onchange="onDropdownChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
                     <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
                 </select>
             </div>
         </header>
+
+        <div id="filter-indicator" class="hidden bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 px-5 py-3 rounded-lg mb-6 shadow-sm justify-between items-center transition-all">
+            <div class="flex items-center">
+                <i class="fa-solid fa-filter mr-3"></i> 
+                <span class="text-sm font-medium">กำลังแสดงข้อมูลเฉพาะ:</span>
+                <span id="filter-text" class="ml-2 font-bold text-base"></span>
+            </div>
+            <button onclick="clearAllFilters()" class="text-xs bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white font-bold px-3 py-1.5 rounded transition shadow-sm">
+                <i class="fa-solid fa-rotate-right mr-1"></i> ล้างตัวกรอง
+            </button>
+        </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="card border-l-4 border-slate-400 !p-5">
@@ -102,7 +113,7 @@
                 <div class="flex justify-between items-center mb-1">
                     <h3 class="text-lg font-bold text-slate-700"><i class="fa-solid fa-map text-indigo-500 mr-2"></i> แผนที่ความสำเร็จรายจังหวัด</h3>
                 </div>
-                <p class="text-xs text-slate-400 mb-2" id="map-hint">💡 สีเข้ม = ดำเนินการเข้าใกล้เป้าหมายมากที่สุด</p>
+                <p class="text-xs text-slate-400 mb-2">💡 สีเข้ม = เข้าใกล้เป้าหมาย (สามารถคลิกเพื่อกรองข้อมูลได้)</p>
                 <div class="map-wrapper">
                     <div id="map-chart" class="plotly-graph"></div>
                 </div>
@@ -118,7 +129,10 @@
                         </div>
                     </div>
                     <div class="card">
-                        <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-children text-rose-500 mr-2"></i> แยกตามกลุ่มเป้าหมาย</h3>
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-children text-rose-500 mr-2"></i> แยกตามกลุ่มเป้าหมาย</h3>
+                        </div>
+                        <p class="text-[10px] text-slate-400">💡 คลิกที่แท่งกราฟเพื่อเจาะจงกลุ่มเป้าหมาย</p>
                         <div class="chart-wrapper">
                             <div id="type-chart" class="plotly-graph"></div>
                         </div>
@@ -126,7 +140,10 @@
                 </div>
 
                 <div class="card flex-grow">
-                    <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-clipboard-check text-emerald-500 mr-2"></i> สถานะการคลีนซิ่งข้อมูลที่พบ</h3>
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-clipboard-check text-emerald-500 mr-2"></i> สถานะการคลีนซิ่งข้อมูลที่พบ</h3>
+                    </div>
+                    <p class="text-[10px] text-slate-400">💡 คลิกที่แท่งกราฟเพื่อดูการกระจายตัวของสถานะนี้บนแผนที่</p>
                     <div class="chart-wrapper">
                         <div id="status-chart" class="plotly-graph"></div>
                     </div>
@@ -138,37 +155,31 @@
     </div>
 
     <script>
-        // ⚠️ ลิงก์ Google Sheets CSV ของคุณ
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
 
         let globalData = [];
         let thailandGeoJSON = null;
         let mapCentroids = {}; 
+        let chartsInitialized = false; // เอาไว้เช็คว่าใส่ Event Click หรือยัง
 
-        // 📌 ตั้งค่าฟอนต์ Prompt เป็นค่าเริ่มต้น
-        const fontConfig = {
-            family: "'Prompt', sans-serif",
-            color: '#475569'
+        // 📌 State สำหรับเก็บค่าการกรอง (Cross-Filtering)
+        let currentFilters = {
+            provinceEn: 'all',
+            targetType: 'all',
+            cleanStatus: 'all'
         };
 
-        // 📌 ตั้งค่า Tooltip พื้นหลังสีขาว ตัวหนังสือสีดำ (ใช้ร่วมกันทุกกราฟ)
+        const fontConfig = { family: "'Prompt', sans-serif", color: '#475569' };
         const tooltipConfig = {
             bgcolor: '#ffffff',
             bordercolor: '#cbd5e1',
-            font: {
-                family: "'Prompt', sans-serif",
-                size: 13,
-                color: '#0f172a' // สีดำอมน้ำเงินเข้ม
-            }
+            font: { family: "'Prompt', sans-serif", size: 13, color: '#000000' }
         };
 
         function cleanProvinceName(name) {
             if (!name) return "";
-            return name.replace('จังหวัด', '')
-                       .replace('จ.', '')
-                       .replace('กรุงเทพมหานคร', 'กรุงเทพมหานคร')
-                       .trim();
+            return name.replace('จังหวัด', '').replace('จ.', '').replace('กรุงเทพมหานคร', 'กรุงเทพมหานคร').trim();
         }
 
         async function initDashboard() {
@@ -182,11 +193,7 @@
                     try {
                         const coords = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
                         coords.forEach(poly => {
-                            poly[0].forEach(pt => {
-                                sumLon += pt[0];
-                                sumLat += pt[1];
-                                count++;
-                            });
+                            poly[0].forEach(pt => { sumLon += pt[0]; sumLat += pt[1]; count++; });
                         });
                         mapCentroids[nameEn] = { lon: sumLon/count, lat: sumLat/count };
                     } catch(e) {}
@@ -200,7 +207,6 @@
                         globalData = results.data.map(row => {
                             const rawProvEn = (row['จังหวัด'] || "").trim();
                             const rawProvTh = (row['ชื่อจังหวัดภาษาไทย'] || rawProvEn).trim();
-                            
                             return {
                                 provinceEn: rawProvEn,
                                 provinceTh: rawProvTh,
@@ -212,34 +218,23 @@
                         }).filter(row => row.provinceEn !== "");
 
                         populateDropdown();
-                        drawMap('all'); 
-                        updateAllCharts('all'); 
+                        updateDashboard(); // วาดทุกกราฟ
                         
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('main-content').style.display = 'block';
-
                         setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 500);
                     },
                     error: function(err) {
                         alert("ดึงข้อมูลล้มเหลว โปรดเช็กลิงก์ CSV");
-                        console.error(err);
                     }
                 });
-            } catch (error) {
-                console.error("Error:", error);
-            }
+            } catch (error) { console.error(error); }
         }
 
         function populateDropdown() {
             const select = document.getElementById('province-select');
-            
             const provMap = new Map();
-            globalData.forEach(d => {
-                if (!provMap.has(d.provinceEn)) {
-                    provMap.set(d.provinceEn, d.provinceTh);
-                }
-            });
-
+            globalData.forEach(d => { if (!provMap.has(d.provinceEn)) provMap.set(d.provinceEn, d.provinceTh); });
             const sortedProvinces = Array.from(provMap.entries()).sort((a, b) => a[1].localeCompare(b[1], 'th'));
 
             sortedProvinces.forEach(([en, th]) => {
@@ -250,117 +245,65 @@
             });
         }
 
-        function onProvinceChange() {
-            const selectedProvEn = document.getElementById('province-select').value;
-            updateAllCharts(selectedProvEn);
-            drawMap(selectedProvEn);
+        // ฟังก์ชันเมื่อเปลี่ยน Dropdown
+        function onDropdownChange() {
+            currentFilters.provinceEn = document.getElementById('province-select').value;
+            updateDashboard();
         }
 
-        function drawMap(selectedProvinceEn) {
-            const mapAgg = {};
-            globalData.forEach(d => {
-                if (!mapAgg[d.provinceEn]) {
-                    mapAgg[d.provinceEn] = { thName: d.provinceTh, vuln: 0, comp: 0 };
-                }
-                mapAgg[d.provinceEn].vuln += d.totalVulnerable;
-                mapAgg[d.provinceEn].comp += d.completed;
-            });
+        // ฟังก์ชันล้างตัวกรองทั้งหมด
+        function clearAllFilters() {
+            currentFilters = { provinceEn: 'all', targetType: 'all', cleanStatus: 'all' };
+            document.getElementById('province-select').value = 'all';
+            updateDashboard();
+        }
 
-            let mapProvincesEn = Object.keys(mapAgg);
-            let displayGeoJSON = thailandGeoJSON;
-            let mapCenter = { lat: 13.0, lon: 100.5 };
-            let mapZoom = 4.5;
-
-            if (selectedProvinceEn !== 'all') {
-                mapProvincesEn = [selectedProvinceEn];
-                displayGeoJSON = {
-                    type: "FeatureCollection",
-                    features: thailandGeoJSON.features.filter(f => f.properties.name === selectedProvinceEn)
-                };
-                
-                if (mapCentroids[selectedProvinceEn]) {
-                    mapCenter = mapCentroids[selectedProvinceEn];
-                    mapZoom = 7; 
-                }
-                document.getElementById('map-hint').innerHTML = `📍 กำลังแสดงข้อมูลเฉพาะ: <span class="font-bold text-indigo-600">${mapAgg[selectedProvinceEn].thName}</span>`;
-            } else {
-                document.getElementById('map-hint').innerHTML = `💡 สีเข้ม = ดำเนินการเข้าใกล้เป้าหมายมากที่สุด`;
-            }
+        // 📌 อัปเดตแถบ UI ด้านบนว่ากำลัง Filter อะไรอยู่บ้าง
+        function updateFilterIndicator() {
+            const indicator = document.getElementById('filter-indicator');
+            const textEl = document.getElementById('filter-text');
+            let filters = [];
             
-            const mapColors = mapProvincesEn.map(pEn => {
-                const vuln = mapAgg[pEn].vuln;
-                const comp = mapAgg[pEn].comp;
-                return vuln > 0 ? (comp / vuln) * 100 : 0; 
-            });
+            if (currentFilters.provinceEn !== 'all') {
+                const thName = globalData.find(d => d.provinceEn === currentFilters.provinceEn)?.provinceTh || currentFilters.provinceEn;
+                filters.push(`<span class="text-indigo-600">📍 จังหวัด:</span> ${thName}`);
+            }
+            if (currentFilters.targetType !== 'all') {
+                filters.push(`<span class="text-rose-500">👶 เป้าหมาย:</span> ${currentFilters.targetType}`);
+            }
+            if (currentFilters.cleanStatus !== 'all') {
+                filters.push(`<span class="text-emerald-600">📋 สถานะ:</span> ${currentFilters.cleanStatus}`);
+            }
 
-            const mapHover = mapProvincesEn.map(pEn => {
-                const thName = mapAgg[pEn].thName;
-                const vuln = mapAgg[pEn].vuln;
-                const comp = mapAgg[pEn].comp;
-                const pct = vuln > 0 ? ((comp / vuln) * 100).toFixed(2) : 0;
-                return `<b>${thName}</b><br>เป้าหมาย: ${vuln.toLocaleString()} คน<br>ดำเนินการแล้ว: ${comp.toLocaleString()} คน<br><b>ความสำเร็จ: ${pct}%</b>`;
-            });
-
-            const mapTrace = [{
-                type: 'choroplethmapbox',
-                geojson: displayGeoJSON, 
-                locations: mapProvincesEn, 
-                featureidkey: 'properties.name', 
-                z: mapColors, 
-                // 📌 บังคับสี 0% คือฟ้าอ่อนสุด 100% คือน้ำเงินเข้มสุด
-                colorscale: [
-                    [0, '#eff6ff'],   // 0%
-                    [0.25, '#bae6fd'],
-                    [0.5, '#38bdf8'],
-                    [0.75, '#0284c7'],
-                    [1, '#0c4a6e']    // 100%
-                ], 
-                zmin: 0,   
-                zmax: 100, 
-                text: mapHover,
-                hoverinfo: 'text',
-                marker: { opacity: 0.85, line: {width: 0.8, color: '#94a3b8'} } 
-            }];
-
-            const mapLayout = {
-                font: fontConfig,
-                hoverlabel: tooltipConfig, // 📌 ใส่พื้นหลังสีขาวให้ Tooltip แผนที่
-                mapbox: {
-                    style: 'carto-positron',
-                    center: mapCenter, 
-                    zoom: mapZoom
-                },
-                margin: { t: 0, b: 0, l: 0, r: 0 },
-                coloraxis: { showscale: false },
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)'
-            };
-
-            Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
-
-            document.getElementById('map-chart').removeAllListeners('plotly_click');
-            document.getElementById('map-chart').on('plotly_click', function(data){
-                const clickedProvEn = data.points[0].location;
-                const selectEl = document.getElementById('province-select');
-                if([...selectEl.options].some(opt => opt.value === clickedProvEn)) {
-                    selectEl.value = clickedProvEn;
-                    onProvinceChange(); 
-                }
-            });
+            if (filters.length > 0) {
+                textEl.innerHTML = filters.join(' <span class="text-indigo-300 mx-2">|</span> ');
+                indicator.classList.remove('hidden');
+                indicator.classList.add('flex');
+            } else {
+                indicator.classList.add('hidden');
+                indicator.classList.remove('flex');
+            }
         }
 
-        function updateAllCharts(selectedProvinceEn) {
-            let filteredData = globalData;
-            if (selectedProvinceEn !== 'all') {
-                filteredData = globalData.filter(d => d.provinceEn === selectedProvinceEn);
-            }
+        // 📌 ฟังก์ชันหลัก: กรองข้อมูลและวาดกราฟทั้งหมด
+        function updateDashboard() {
+            // 1. กรองข้อมูลตามเงื่อนไข (Cross-Filtering)
+            let filteredData = globalData.filter(d => {
+                let matchProv = (currentFilters.provinceEn === 'all' || d.provinceEn === currentFilters.provinceEn);
+                let matchType = (currentFilters.targetType === 'all' || d.targetType === currentFilters.targetType);
+                let matchStat = (currentFilters.cleanStatus === 'all' || d.cleanStatus === currentFilters.cleanStatus);
+                return matchProv && matchType && matchStat;
+            });
+
+            updateFilterIndicator();
 
             let sumTotal = 0;
             let sumCompleted = 0;
-            
             const typeAgg = {};   
             const statusAgg = {}; 
+            const mapAgg = {};
 
+            // 2. จัดกลุ่มข้อมูลที่ถูกกรองแล้ว
             filteredData.forEach(d => {
                 sumTotal += d.totalVulnerable;
                 sumCompleted += d.completed;
@@ -373,80 +316,138 @@
                     if (!statusAgg[d.cleanStatus]) statusAgg[d.cleanStatus] = 0;
                     statusAgg[d.cleanStatus] += d.totalVulnerable;
                 }
+
+                if (!mapAgg[d.provinceEn]) mapAgg[d.provinceEn] = { thName: d.provinceTh, vuln: 0, comp: 0 };
+                mapAgg[d.provinceEn].vuln += d.totalVulnerable;
+                mapAgg[d.provinceEn].comp += d.completed;
             });
 
+            // 3. วาด KPI
             const sumPending = sumTotal - sumCompleted;
             const pct = sumTotal > 0 ? ((sumCompleted / sumTotal) * 100).toFixed(2) : 0;
-
             document.getElementById('kpi-total').innerText = sumTotal.toLocaleString();
             document.getElementById('kpi-completed').innerText = sumCompleted.toLocaleString();
             document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
             document.getElementById('kpi-percent').innerText = pct + '%';
 
-            // 📌 เลย์เอาต์มาตรฐานสำหรับกราฟขวามือทั้งหมด (พร้อม Tooltip สีขาว)
             const defaultLayout = {
                 font: fontConfig,
-                hoverlabel: tooltipConfig, // 📌 บังคับพื้นสีขาว ตัวหนังสือสีดำ
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
+                hoverlabel: tooltipConfig,
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
                 margin: { t: 20, b: 30, l: 40, r: 20 }
             };
 
+            // ------------------ 4. วาดแผนที่ ------------------
+            let mapProvincesEn = Object.keys(mapAgg);
+            let displayGeoJSON = thailandGeoJSON;
+            let mapCenter = { lat: 13.0, lon: 100.5 };
+            let mapZoom = 4.5;
+
+            // ถ้าเลือกจังหวัด ให้ตัด GeoJSON เหลือชิ้นเดียวและซูม
+            if (currentFilters.provinceEn !== 'all') {
+                displayGeoJSON = { type: "FeatureCollection", features: thailandGeoJSON.features.filter(f => f.properties.name === currentFilters.provinceEn) };
+                if (mapCentroids[currentFilters.provinceEn]) {
+                    mapCenter = mapCentroids[currentFilters.provinceEn];
+                    mapZoom = 7; 
+                }
+            }
+            
+            const mapColors = mapProvincesEn.map(pEn => {
+                const v = mapAgg[pEn].vuln;
+                const c = mapAgg[pEn].comp;
+                return v > 0 ? (c / v) * 100 : 0; 
+            });
+
+            const mapHover = mapProvincesEn.map(pEn => {
+                const thName = mapAgg[pEn].thName;
+                const v = mapAgg[pEn].vuln;
+                const c = mapAgg[pEn].comp;
+                const p = v > 0 ? ((c / v) * 100).toFixed(2) : 0;
+                return `<b>${thName}</b><br>เป้าหมาย: ${v.toLocaleString()} คน<br>ดำเนินการแล้ว: ${c.toLocaleString()} คน<br><b>ความสำเร็จ: ${p}%</b>`;
+            });
+
+            const mapTrace = [{
+                type: 'choroplethmapbox',
+                geojson: displayGeoJSON, 
+                locations: mapProvincesEn, 
+                featureidkey: 'properties.name', 
+                z: mapColors, 
+                colorscale: [[0, '#eff6ff'], [0.25, '#bae6fd'], [0.5, '#38bdf8'], [0.75, '#0284c7'], [1, '#0c4a6e']], 
+                zmin: 0, zmax: 100, 
+                text: mapHover, hoverinfo: 'text',
+                marker: { opacity: 0.85, line: {width: 0.8, color: '#94a3b8'} } 
+            }];
+
+            const mapLayout = {
+                font: fontConfig, hoverlabel: tooltipConfig,
+                mapbox: { style: 'carto-positron', center: mapCenter, zoom: mapZoom },
+                margin: { t: 0, b: 0, l: 0, r: 0 }, coloraxis: { showscale: false },
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+            };
+
+            Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
+
+            // ------------------ 5. วาดโดนัท ------------------
             const donutTrace = [{
-                values: [sumCompleted, sumPending],
-                labels: ['ดำเนินการแล้ว', 'อยู่ระหว่างดำเนินการ'],
-                type: 'pie',
-                hole: .65,
-                marker: { colors: ['#10b981', '#f59e0b'] },
-                textinfo: 'label+percent',
-                textposition: 'outside',
-                hoverinfo: 'label+value'
+                values: [sumCompleted, sumPending], labels: ['ดำเนินการแล้ว', 'อยู่ระหว่างดำเนินการ'],
+                type: 'pie', hole: .65, marker: { colors: ['#10b981', '#f59e0b'] },
+                textinfo: 'label+percent', textposition: 'outside', hoverinfo: 'label+value'
             }];
             const donutLayout = { 
-                ...defaultLayout,
-                margin: { t: 20, b: 20, l: 20, r: 20 },
-                showlegend: false, 
+                ...defaultLayout, margin: { t: 20, b: 20, l: 20, r: 20 }, showlegend: false, 
                 annotations: [{ font: { family: "'Prompt', sans-serif", size: 22, weight: 'bold', color: '#1e293b' }, showarrow: false, text: pct + '%' }]
             };
             Plotly.react('donut-chart', donutTrace, donutLayout, {responsive: true, displayModeBar: false});
 
+            // ------------------ 6. วาดแท่งเป้าหมาย ------------------
             const types = Object.keys(typeAgg);
-            const typeTrace1 = {
-                x: types, y: types.map(t => typeAgg[t].total),
-                name: 'เป้าหมาย', type: 'bar', marker: { color: '#cbd5e1' } 
-            };
-            const typeTrace2 = {
-                x: types, y: types.map(t => typeAgg[t].comp),
-                name: 'ดำเนินการแล้ว', type: 'bar', marker: { color: '#3b82f6' } 
-            };
-            const typeLayout = {
-                ...defaultLayout,
-                barmode: 'group',
-                showlegend: true,
-                legend: { orientation: 'h', y: 1.15, x: 0 },
-                yaxis: { automargin: true }
-            };
+            const typeTrace1 = { x: types, y: types.map(t => typeAgg[t].total), name: 'เป้าหมาย', type: 'bar', marker: { color: '#cbd5e1' } };
+            const typeTrace2 = { x: types, y: types.map(t => typeAgg[t].comp), name: 'ดำเนินการแล้ว', type: 'bar', marker: { color: '#3b82f6' } };
+            const typeLayout = { ...defaultLayout, barmode: 'group', showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0 }, yaxis: { automargin: true } };
             Plotly.react('type-chart', [typeTrace1, typeTrace2], typeLayout, {responsive: true, displayModeBar: false});
 
+            // ------------------ 7. วาดสถานะคลีนซิ่ง ------------------
             let sortableStatus = Object.keys(statusAgg).map(k => ({ name: k, val: statusAgg[k] }));
             sortableStatus.sort((a, b) => a.val - b.val); 
-
             const statusTrace = [{
-                y: sortableStatus.map(s => s.name),
-                x: sortableStatus.map(s => s.val),
-                type: 'bar',
-                orientation: 'h',
-                marker: { color: '#8b5cf6' }, 
-                text: sortableStatus.map(s => s.val.toLocaleString()),
-                textposition: 'auto'
+                y: sortableStatus.map(s => s.name), x: sortableStatus.map(s => s.val), type: 'bar', orientation: 'h',
+                marker: { color: '#8b5cf6' }, text: sortableStatus.map(s => s.val.toLocaleString()), textposition: 'auto'
             }];
-            const statusLayout = {
-                ...defaultLayout,
-                margin: { t: 10, b: 30, l: 150, r: 20 }, 
-                xaxis: { title: 'จำนวน (คน)', automargin: true },
-                yaxis: { automargin: true }
-            };
+            const statusLayout = { ...defaultLayout, margin: { t: 10, b: 30, l: 150, r: 20 }, xaxis: { title: 'จำนวน (คน)', automargin: true }, yaxis: { automargin: true } };
             Plotly.react('status-chart', statusTrace, statusLayout, {responsive: true, displayModeBar: false});
+
+            // ------------------ 8. ใส่ Event Click ให้กราฟ (ทำแค่ครั้งแรก) ------------------
+            if (!chartsInitialized) {
+                
+                // คลิกแผนที่ -> กรองจังหวัด
+                document.getElementById('map-chart').on('plotly_click', function(data){
+                    const clickedProv = data.points[0].location;
+                    if (currentFilters.provinceEn === clickedProv) {
+                        currentFilters.provinceEn = 'all'; // คลิกซ้ำเพื่อยกเลิก
+                        document.getElementById('province-select').value = 'all';
+                    } else {
+                        currentFilters.provinceEn = clickedProv;
+                        document.getElementById('province-select').value = clickedProv;
+                    }
+                    updateDashboard();
+                });
+
+                // คลิกกราฟกลุ่มเป้าหมาย -> กรองประเภท (เด็ก, คนแก่)
+                document.getElementById('type-chart').on('plotly_click', function(data){
+                    const clickedType = data.points[0].x;
+                    currentFilters.targetType = (currentFilters.targetType === clickedType) ? 'all' : clickedType;
+                    updateDashboard();
+                });
+
+                // คลิกกราฟสถานะ -> กรองสถานะ (Idผิด, ตาย, ฯลฯ)
+                document.getElementById('status-chart').on('plotly_click', function(data){
+                    const clickedStatus = data.points[0].y;
+                    currentFilters.cleanStatus = (currentFilters.cleanStatus === clickedStatus) ? 'all' : clickedStatus;
+                    updateDashboard();
+                });
+
+                chartsInitialized = true;
+            }
         }
 
         initDashboard();
