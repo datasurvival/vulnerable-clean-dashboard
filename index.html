@@ -1,184 +1,299 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบางจากระบบ MSO-LOGBOOK</title>
+    <title>MSO-LOGBOOK: ระบบติดตามกลุ่มเปราะบาง</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Kanit', 'sans-serif'] },
+                    colors: {
+                        primary: '#1e40af', // Blue 800
+                        secondary: '#3b82f6', // Blue 500
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        body { font-family: 'Prompt', sans-serif; background-color: #f1f5f9; }
-        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 1.5rem; transition: all 0.3s; display: flex; flex-direction: column; }
-        .card:hover { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
-        #loading { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; background: rgba(255,255,255,0.95); z-index: 50; }
-        select { cursor: pointer; }
-        .chart-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 280px; margin-top: 0.5rem; }
-        .map-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 550px; margin-top: 0.5rem; }
-        .plotly-graph { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        body { font-family: 'Kanit', sans-serif; }
         
-        .logo-container { width: 60px; height: 60px; border-radius: 50%; overflow: hidden; background-color: white; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px solid #e2e8f0; }
-        .logo-container img { width: 80%; height: auto; object-fit: contain; }
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Dark Mode Cards */
+        .dark .glass-card {
+            background: rgba(30, 41, 59, 0.95); /* slate-800 */
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Wrappers สำหรับ Plotly */
+        .chart-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 300px; margin-top: 1rem; }
+        .map-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 500px; margin-top: 1rem; }
+        .plotly-graph { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* Loader */
+        #loading { 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; z-index: 50; 
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(5px);
+        }
+        .dark #loading { background: rgba(15, 23, 42, 0.95); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
     </style>
 </head>
-<body class="text-slate-800">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
 
     <div id="loading">
-        <i class="fa-solid fa-spinner fa-spin text-indigo-600 text-5xl mb-4"></i>
-        <h2 class="text-xl font-bold text-slate-700">กำลังดึงข้อมูลและสร้างแดชบอร์ด...</h2>
-        <p class="text-slate-500 text-sm mt-2">โปรดรอสักครู่</p>
+        <div class="relative w-20 h-20 mb-6">
+            <div class="absolute inset-0 border-4 border-slate-200 dark:border-slate-700 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800 dark:text-white">กำลังเตรียมแดชบอร์ด...</h2>
+        <p class="text-slate-500 dark:text-slate-400 mt-2">ดึงข้อมูลล่าสุดจาก MSO-LOGBOOK</p>
     </div>
 
-    <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content" style="display: none;">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content" style="display: none;">
         
-        <header class="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
-            <div class="flex items-center gap-4">
-                <div class="logo-container shrink-0">
-                    <img src="Asset 5.png" alt="Logo" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ministry_of_Social_Development_and_Human_Security_logo.svg/1024px-Ministry_of_Social_Development_and_Human_Security_logo.svg.png'">
+        <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8 pb-6 border-b border-slate-200 dark:border-slate-700 relative">
+            
+            <button id="themeToggle" class="absolute top-0 right-0 w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center transition shadow-sm" title="สลับโหมดกลางคืน">
+                <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+
+            <div class="flex items-center gap-5 mt-4 lg:mt-0">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 shrink-0 bg-white rounded-2xl shadow-md border border-slate-100 flex items-center justify-center p-2">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ministry_of_Social_Development_and_Human_Security_logo.svg/1024px-Ministry_of_Social_Development_and_Human_Security_logo.svg.png" alt="Logo" class="object-contain w-full h-full">
                 </div>
                 <div>
-                    <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-1">ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบางจากระบบ MSO-LOGBOOK</h1>
-                    <p class="text-slate-500 font-medium">วิเคราะห์ข้อมูล เด็ก ผู้สูงอายุ และคนพิการ ระดับประเทศและจังหวัด</p>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-primary dark:text-blue-400 leading-tight">ระบบติดตามการคลีนซิ่งข้อมูล</h1>
+                    <p class="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1 font-medium">กลุ่มเปราะบาง (เด็ก ผู้สูงอายุ คนพิการ) จาก MSO-LOGBOOK</p>
                 </div>
             </div>
-            <div class="w-full lg:w-[450px] shrink-0 mt-4 lg:mt-0">
-                <label class="block text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> เลือกจังหวัดที่ต้องการดูข้อมูล:</label>
-                <div class="flex gap-2">
-                    <select id="province-select" onchange="onDropdownChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
-                        <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
-                    </select>
-                    <button onclick="downloadPendingCSV()" class="shrink-0 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition flex items-center gap-2" title="ดาวน์โหลดรายชื่อที่รอทำ (CSV)">
-                        <i class="fa-solid fa-file-csv"></i> <span class="hidden sm:inline">โหลดเป้าหมายคงเหลือ</span>
+
+            <div class="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
+                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">ตัวกรองระดับพื้นที่</label>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="relative w-full sm:w-64">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-location-dot text-rose-500"></i>
+                        </div>
+                        <select id="province-select" onchange="onDropdownChange()" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary appearance-none cursor-pointer outline-none transition">
+                            <option value="all">ภาพรวมทั้งประเทศ</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
+                        </div>
+                    </div>
+                    
+                    <button onclick="downloadPendingCSV()" class="w-full sm:w-auto bg-primary hover:bg-blue-800 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition flex items-center justify-center gap-2 group">
+                        <i class="fa-solid fa-download group-hover:-translate-y-0.5 transition-transform"></i>
+                        <span>เป้าหมายคงเหลือ</span>
                     </button>
                 </div>
             </div>
         </header>
 
-        <div id="filter-indicator" class="hidden bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 px-5 py-3 rounded-lg mb-6 shadow-sm justify-between items-center transition-all">
-            <div class="flex items-center">
-                <i class="fa-solid fa-filter mr-3"></i> 
-                <span class="text-sm font-medium">กำลังแสดงข้อมูลเฉพาะ:</span>
-                <span id="filter-text" class="ml-2 font-bold text-base"></span>
+        <div id="filter-indicator" class="hidden mb-6 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4 flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="font-semibold text-slate-600 dark:text-slate-300"><i class="fa-solid fa-filter mr-1"></i> ตัวกรอง:</span>
+                <div id="filter-badges" class="flex flex-wrap gap-2"></div>
             </div>
-            <button onclick="clearAllFilters()" class="text-xs bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white font-bold px-3 py-1.5 rounded transition shadow-sm">
-                <i class="fa-solid fa-rotate-right mr-1"></i> ล้างตัวกรอง
+            <button onclick="clearAllFilters()" class="text-xs px-3 py-1.5 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-red-500 border border-slate-200 dark:border-slate-600 rounded shadow-sm transition whitespace-nowrap">
+                <i class="fa-solid fa-xmark mr-1"></i> ล้างทั้งหมด
             </button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="card border-l-4 border-slate-400 !p-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+            
+            <div class="glass-card p-6 border-t-4 border-t-slate-400 dark:border-t-slate-500">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-sm font-bold text-slate-500 mb-1">เป้าหมายทั้งหมด</p>
-                        <h3 class="text-2xl xl:text-3xl font-bold text-slate-700" id="kpi-total">0</h3>
-                        <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">เป้าหมายทั้งหมด</p>
+                        <h3 class="text-3xl font-bold text-slate-800 dark:text-white" id="kpi-total">0</h3>
+                        <p class="text-xs text-slate-400 mt-2">ราย (คน)</p>
                     </div>
-                    <div class="p-3 bg-slate-100 rounded-lg text-slate-500"><i class="fa-solid fa-users fa-lg"></i></div>
+                    <div class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                        <i class="fa-solid fa-users text-xl"></i>
+                    </div>
                 </div>
             </div>
-            <div class="card border-l-4 border-emerald-500 !p-5">
+
+            <div class="glass-card p-6 border-t-4 border-t-emerald-500">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-sm font-bold text-emerald-600 mb-1">ดำเนินการแล้ว</p>
-                        <h3 class="text-2xl xl:text-3xl font-bold text-emerald-600" id="kpi-completed">0</h3>
-                        <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
+                        <p class="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-1">ดำเนินการแล้ว</p>
+                        <h3 class="text-3xl font-bold text-slate-800 dark:text-white" id="kpi-completed">0</h3>
+                        <p class="text-xs text-slate-400 mt-2">ราย (คน)</p>
                     </div>
-                    <div class="p-3 bg-emerald-50 rounded-lg text-emerald-500"><i class="fa-solid fa-check-double fa-lg"></i></div>
+                    <div class="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
+                        <i class="fa-solid fa-check-double text-xl"></i>
+                    </div>
                 </div>
             </div>
-            <div class="card border-l-4 border-amber-500 !p-5">
+
+            <div class="glass-card p-6 border-t-4 border-t-amber-500">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-sm font-bold text-amber-600 mb-1">อยู่ระหว่างดำเนินการ</p>
-                        <h3 class="text-2xl xl:text-3xl font-bold text-amber-500" id="kpi-pending">0</h3>
-                        <p class="text-xs text-slate-400 mt-1">ราย (คน)</p>
+                        <p class="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">รอดำเนินการ</p>
+                        <h3 class="text-3xl font-bold text-slate-800 dark:text-white" id="kpi-pending">0</h3>
+                        <p class="text-xs text-slate-400 mt-2">ราย (คน)</p>
                     </div>
-                    <div class="p-3 bg-amber-50 rounded-lg text-amber-500"><i class="fa-solid fa-hourglass-half fa-lg"></i></div>
+                    <div class="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500">
+                        <i class="fa-solid fa-hourglass-half text-xl"></i>
+                    </div>
                 </div>
             </div>
-            <div class="card border-l-4 border-blue-500 !p-5">
+
+            <div class="glass-card p-6 border-t-4 border-t-primary">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-sm font-bold text-blue-600 mb-1">ร้อยละความสำเร็จ</p>
-                        <h3 class="text-2xl xl:text-3xl font-bold text-blue-600" id="kpi-percent">0%</h3>
-                        <p class="text-xs text-slate-400 mt-1">จากเป้าหมายทั้งหมด</p>
+                        <p class="text-sm font-medium text-primary dark:text-blue-400 mb-1">ความสำเร็จ</p>
+                        <h3 class="text-3xl font-bold text-slate-800 dark:text-white" id="kpi-percent">0%</h3>
+                        <p class="text-xs text-slate-400 mt-2">จากเป้าหมายทั้งหมด</p>
                     </div>
-                    <div class="p-3 bg-blue-50 rounded-lg text-blue-500"><i class="fa-solid fa-chart-line fa-lg"></i></div>
+                    <div class="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-primary dark:text-blue-400">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                    </div>
                 </div>
             </div>
+
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            <div class="card lg:col-span-5">
-                <div class="flex justify-between items-center mb-1">
-                    <h3 class="text-lg font-bold text-slate-700"><i class="fa-solid fa-map text-indigo-500 mr-2"></i> แผนที่ความสำเร็จรายจังหวัด</h3>
+            
+            <div class="glass-card p-5 lg:col-span-5 flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center">
+                        <span class="w-2 h-6 bg-primary rounded-full mr-3"></span> แผนที่ความสำเร็จ
+                    </h3>
                 </div>
-                <p class="text-xs text-slate-400 mb-2">💡 สีเข้ม = เข้าใกล้เป้าหมาย (สามารถคลิกเพื่อกรองข้อมูลได้)</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">📌 สีเข้ม = เข้าใกล้เป้าหมาย (คลิกที่แผนที่เพื่อกรอง)</p>
                 <div class="map-wrapper">
                     <div id="map-chart" class="plotly-graph"></div>
                 </div>
             </div>
 
             <div class="lg:col-span-7 flex flex-col gap-6">
+                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow">
-                    <div class="card">
-                        <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i> สัดส่วนความคืบหน้า</h3>
+                    <div class="glass-card p-5 flex flex-col">
+                        <h3 class="text-base font-bold text-slate-800 dark:text-white mb-2 flex items-center">
+                            <span class="w-2 h-5 bg-secondary rounded-full mr-2"></span> สัดส่วนความคืบหน้า
+                        </h3>
                         <div class="chart-wrapper">
                             <div id="donut-chart" class="plotly-graph"></div>
                         </div>
                     </div>
-                    <div class="card">
-                        <div class="flex justify-between items-start">
-                            <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-children text-rose-500 mr-2"></i> แยกตามกลุ่มเป้าหมาย</h3>
+                    <div class="glass-card p-5 flex flex-col">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center">
+                                <span class="w-2 h-5 bg-rose-500 rounded-full mr-2"></span> แยกกลุ่มเป้าหมาย
+                            </h3>
                         </div>
-                        <p class="text-[10px] text-slate-400">💡 คลิกที่แท่งกราฟเพื่อเจาะจงกลุ่มเป้าหมาย</p>
+                        <p class="text-[10px] text-slate-400">คลิกที่แท่งเพื่อกรองข้อมูล</p>
                         <div class="chart-wrapper">
                             <div id="type-chart" class="plotly-graph"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card flex-grow">
-                    <div class="flex justify-between items-start">
-                        <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-clipboard-check text-emerald-500 mr-2"></i> สถานะการคลีนซิ่งข้อมูลที่พบ</h3>
+                <div class="glass-card p-5 flex-grow flex flex-col">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center">
+                            <span class="w-2 h-5 bg-emerald-500 rounded-full mr-2"></span> สถานะการคลีนซิ่งข้อมูล
+                        </h3>
                     </div>
-                    <p class="text-[10px] text-slate-400">💡 คลิกที่แท่งกราฟเพื่อดูการกระจายตัวของสถานะนี้บนแผนที่</p>
-                    <div class="chart-wrapper">
+                    <p class="text-[10px] text-slate-400">คลิกที่แท่งเพื่อดูการกระจายตัวบนแผนที่</p>
+                    <div class="chart-wrapper" style="min-height: 250px;">
                         <div id="status-chart" class="plotly-graph"></div>
                     </div>
                 </div>
+
             </div>
         </div>
+
     </div>
 
     <script>
+        // -------------------------------------------------------------
+        // 🌙 ระบบ Dark Mode
+        // -------------------------------------------------------------
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlEl = document.documentElement;
+
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlEl.classList.add('dark');
+            themeIcon.classList.replace('fa-moon', 'fa-sun');
+        } else {
+            htmlEl.classList.remove('dark');
+        }
+
+        themeToggleBtn.addEventListener('click', function() {
+            htmlEl.classList.toggle('dark');
+            const isDark = htmlEl.classList.contains('dark');
+            localStorage.theme = isDark ? 'dark' : 'light';
+            themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            
+            // Re-render charts เพื่อเปลี่ยนสีฟอนต์ให้เข้ากับธีม
+            if(globalData.length > 0) updateDashboard(); 
+        });
+
+        // -------------------------------------------------------------
+        // 📊 Logic ของแดชบอร์ด (ยกมาจากของเดิมทั้งหมด)
+        // -------------------------------------------------------------
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
 
-        let rawRawData = []; // เก็บข้อมูลดิบก่อนลบตัวซ้ำ (เอาไว้ตอน Export)
-        let globalData = []; // ข้อมูลที่คลีน/ลบตัวซ้ำแล้ว ไว้โชว์กราฟ
+        let rawRawData = []; 
+        let globalData = []; 
         let thailandGeoJSON = null;
         let mapCentroids = {}; 
         let chartsInitialized = false; 
 
-        let currentFilters = {
-            provinceEn: 'all',
-            targetType: 'all',
-            cleanStatus: 'all'
-        };
+        let currentFilters = { provinceEn: 'all', targetType: 'all', cleanStatus: 'all' };
 
-        const fontConfig = { family: "'Prompt', sans-serif", color: '#475569' };
-        const tooltipConfig = {
-            bgcolor: '#ffffff',
-            bordercolor: '#cbd5e1',
-            font: { family: "'Prompt', sans-serif", size: 13, color: '#000000' }
-        };
+        // ฟังก์ชันช่วยจัดการสีตาม Theme
+        function getChartConfig() {
+            const isDark = document.documentElement.classList.contains('dark');
+            return {
+                font: { family: "'Kanit', sans-serif", color: isDark ? '#cbd5e1' : '#475569' },
+                bg: 'rgba(0,0,0,0)',
+                gridColor: isDark ? '#334155' : '#f1f5f9',
+                tooltipBg: isDark ? '#1e293b' : '#ffffff',
+                tooltipText: isDark ? '#f8fafc' : '#0f172a',
+                tooltipBorder: isDark ? '#475569' : '#e2e8f0',
+            };
+        }
 
-        // 📌 ฟังก์ชันจัดการชื่อจังหวัดภาษาอังกฤษ (เพื่อจับคู่กับแผนที่)
         function cleanProvinceName(name) {
             if (!name) return "";
             return name.replace('จังหวัด', '').replace('จ.', '').trim();
@@ -190,37 +305,22 @@
             "Bangkok": "Krung Thep Maha Nakhon", "Bangkok Metropolis": "Krung Thep Maha Nakhon"
         };
 
-        // 📌 ฟังก์ชันลบตัวซ้ำและให้ความสำคัญกับ "ดำเนินการแล้ว"
         function processDataLogic(dataArr) {
             const uniqueMap = new Map();
-
             dataArr.forEach(row => {
-                // สมมติว่ามีคอลัมน์รหัสสมาชิก (ถ้าชื่อคอลัมน์ใน CSV ต่างไปจากนี้ ให้เปลี่ยนชื่อตรงวงเล็บ)
                 const memberId = (row['รหัสสมาชิกครัวเรือน'] || row['รหัสสมาชิก'] || "").trim();
                 const type = (row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || "").trim();
-                
-                // สร้าง Key สำหรับเช็คซ้ำ (รหัสสมาชิก + ประเภทกลุ่มเป้าหมาย)
                 const uniqueKey = `${memberId}_${type}`;
-                
                 const isCompleted = parseInt(row['จำนวนที่ดำเนินการแล้ว'] || 0, 10) > 0;
 
-                // ถ้ามีข้อมูลนี้อยู่แล้วใน Map ให้มาเช็คสถานะ
                 if (uniqueMap.has(uniqueKey)) {
-                    const existingData = uniqueMap.get(uniqueKey);
-                    const existingCompleted = existingData.completed > 0;
-                    
-                    // ถ้ารายการใหม่เป็น "ดำเนินการแล้ว" แต่รายการเก่าไม่ใช่ ให้ทับรายการเก่า
-                    if (isCompleted && !existingCompleted) {
+                    if (isCompleted && !(uniqueMap.get(uniqueKey).completed > 0)) {
                         uniqueMap.set(uniqueKey, row);
                     }
-                    // ถ้ารายการเก่าทำแล้ว หรือทั้งคู่เหมือนกัน ก็ปล่อยผ่าน (เก็บอันที่สำเร็จไว้)
                 } else {
-                    // ถ้ายังไม่มีในระบบเลย ก็จับใส่ Map
                     uniqueMap.set(uniqueKey, row);
                 }
             });
-
-            // คืนค่ากลับเป็น Array เฉพาะรายการที่รอดชีวิตจากการคัดกรอง
             return Array.from(uniqueMap.values());
         }
 
@@ -242,30 +342,22 @@
                 });
 
                 Papa.parse(GOOGLE_SHEET_CSV_URL, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: true,
+                    download: true, header: true, skipEmptyLines: true,
                     complete: function(results) {
-                        // เก็บข้อมูลทั้งหมดไว้ (ใช้ทำ CSV ภายหลัง)
                         rawRawData = results.data;
-                        
-                        // 📌 1. เข้าสู่กระบวนการลบตัวซ้ำ
                         const cleanedData = processDataLogic(rawRawData);
 
-                        // 📌 2. แปลงข้อมูลพร้อมใช้งานสำหรับกราฟ
                         globalData = cleanedData.map(row => {
                             let rawProvEn = cleanProvinceName(row['จังหวัด'] || row['province'] || "");
                             if (fixProvinceNames[rawProvEn]) rawProvEn = fixProvinceNames[rawProvEn];
-                            
                             const rawProvTh = (row['ชื่อจังหวัดภาษาไทย'] || row['จังหวัดภาษาไทย'] || rawProvEn).trim();
                             
                             return {
                                 memberId: (row['รหัสสมาชิกครัวเรือน'] || row['รหัสสมาชิก'] || "").trim(),
-                                provinceEn: rawProvEn,
-                                provinceTh: rawProvTh,
+                                provinceEn: rawProvEn, provinceTh: rawProvTh,
                                 targetType: row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || 'ไม่ระบุ', 
                                 cleanStatus: row['สถานะข้อมูล'] || 'ไม่ระบุ',
-                                totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 1, 10), // ถ้ารายคนจะถือเป็น 1
+                                totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 1, 10),
                                 completed: parseInt(row['จำนวนที่ดำเนินการแล้ว'] || 0, 10)
                             };
                         }).filter(row => row.provinceEn !== "");
@@ -277,25 +369,16 @@
                         document.getElementById('main-content').style.display = 'block';
                         setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 500);
                     },
-                    error: function(err) {
-                        alert("ดึงข้อมูลล้มเหลว โปรดเช็กลิงก์ CSV");
-                    }
+                    error: function(err) { alert("ดึงข้อมูลล้มเหลว โปรดเช็กลิงก์ CSV"); }
                 });
             } catch (error) { console.error(error); }
         }
 
-        // 📌 ฟังก์ชันดาวน์โหลดข้อมูลเป้าหมายคงเหลือ (เป็น CSV)
         function downloadPendingCSV() {
-            // ดึงจังหวัดที่ User เลือกอยู่
             const selectedProvEn = document.getElementById('province-select').value;
-            
-            // กรองข้อมูลที่:
-            // 1. เป็นของจังหวัดที่เลือก (หรือถ้าเลือก All ก็เอาหมด)
-            // 2. จำนวนที่ดำเนินการแล้ว = 0 (ยังไม่เสร็จ)
             const pendingData = globalData.filter(d => {
                 const matchProv = (selectedProvEn === 'all' || d.provinceEn === selectedProvEn);
-                const isPending = d.completed === 0;
-                return matchProv && isPending;
+                return matchProv && d.completed === 0;
             });
 
             if (pendingData.length === 0) {
@@ -303,22 +386,17 @@
                 return;
             }
 
-            // เตรียมข้อมูลทำ CSV (ปรับชื่อคอลัมน์ได้ตามต้องการ)
-            let csvContent = "รหัสสมาชิก,จังหวัด,ประเภทกลุ่มเป้าหมาย,สถานะคลีนซิ่งข้อมูล\n"; // Header
-            
+            let csvContent = "รหัสสมาชิก,จังหวัด,ประเภทกลุ่มเป้าหมาย,สถานะคลีนซิ่งข้อมูล\n"; 
             pendingData.forEach(row => {
-                // ใส่ "" คล่อมข้อมูลเพื่อป้องกันปัญหาตอนเปิดใน Excel (เผื่อมีเครื่องหมายคอมม่าในข้อความ)
                 csvContent += `"${row.memberId}","${row.provinceTh}","${row.targetType}","${row.cleanStatus}"\n`;
             });
 
-            // สร้างไฟล์แล้วดาวน์โหลด (ต้องใช้ BOM เพื่อให้ Excel อ่านไทยได้)
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-            
             const link = document.createElement("a");
             const provName = selectedProvEn === 'all' ? "ภาพรวม" : pendingData[0].provinceTh;
             link.setAttribute("href", url);
-            link.setAttribute("download", `รายการเป้าหมายคงเหลือ_${provName}.csv`);
+            link.setAttribute("download", `รายการรอทำ_${provName}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -333,7 +411,7 @@
             sortedProvinces.forEach(([en, th]) => {
                 const opt = document.createElement('option');
                 opt.value = en;
-                opt.textContent = `📍 ${th}`;
+                opt.textContent = th; // เอาอิโมจิออก ให้ดูคลีนๆ
                 select.appendChild(opt);
             });
         }
@@ -351,22 +429,32 @@
 
         function updateFilterIndicator() {
             const indicator = document.getElementById('filter-indicator');
-            const textEl = document.getElementById('filter-text');
-            let filters = [];
+            const badgeContainer = document.getElementById('filter-badges');
+            badgeContainer.innerHTML = '';
             
+            let hasFilter = false;
+            
+            const createBadge = (icon, label, value) => {
+                return `<span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 shadow-sm">
+                            <i class="${icon} mr-1.5 opacity-70"></i> ${label}: ${value}
+                        </span>`;
+            };
+
             if (currentFilters.provinceEn !== 'all') {
                 const thName = globalData.find(d => d.provinceEn === currentFilters.provinceEn)?.provinceTh || currentFilters.provinceEn;
-                filters.push(`<span class="text-indigo-600">📍 จังหวัด:</span> ${thName}`);
+                badgeContainer.innerHTML += createBadge('fa-solid fa-location-dot text-rose-500', 'จังหวัด', thName);
+                hasFilter = true;
             }
             if (currentFilters.targetType !== 'all') {
-                filters.push(`<span class="text-rose-500">👶 เป้าหมาย:</span> ${currentFilters.targetType}`);
+                badgeContainer.innerHTML += createBadge('fa-solid fa-children text-blue-500', 'เป้าหมาย', currentFilters.targetType);
+                hasFilter = true;
             }
             if (currentFilters.cleanStatus !== 'all') {
-                filters.push(`<span class="text-emerald-600">📋 สถานะ:</span> ${currentFilters.cleanStatus}`);
+                badgeContainer.innerHTML += createBadge('fa-solid fa-clipboard-check text-emerald-500', 'สถานะ', currentFilters.cleanStatus);
+                hasFilter = true;
             }
 
-            if (filters.length > 0) {
-                textEl.innerHTML = filters.join(' <span class="text-indigo-300 mx-2">|</span> ');
+            if (hasFilter) {
                 indicator.classList.remove('hidden');
                 indicator.classList.add('flex');
             } else {
@@ -385,11 +473,8 @@
 
             updateFilterIndicator();
 
-            let sumTotal = 0;
-            let sumCompleted = 0;
-            const typeAgg = {};   
-            const statusAgg = {}; 
-            const mapAgg = {};
+            let sumTotal = 0, sumCompleted = 0;
+            const typeAgg = {}, statusAgg = {}, mapAgg = {};
 
             filteredData.forEach(d => {
                 sumTotal += d.totalVulnerable;
@@ -411,18 +496,23 @@
 
             const sumPending = sumTotal - sumCompleted;
             const pct = sumTotal > 0 ? ((sumCompleted / sumTotal) * 100).toFixed(2) : 0;
+            
             document.getElementById('kpi-total').innerText = sumTotal.toLocaleString();
             document.getElementById('kpi-completed').innerText = sumCompleted.toLocaleString();
             document.getElementById('kpi-pending').innerText = sumPending.toLocaleString();
             document.getElementById('kpi-percent').innerText = pct + '%';
 
+            const cfg = getChartConfig();
+            const hoverConfig = { bgcolor: cfg.tooltipBg, bordercolor: cfg.tooltipBorder, font: { family: cfg.font.family, size: 13, color: cfg.tooltipText } };
+
             const defaultLayout = {
-                font: fontConfig,
-                hoverlabel: tooltipConfig,
-                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                font: cfg.font,
+                hoverlabel: hoverConfig,
+                paper_bgcolor: cfg.bg, plot_bgcolor: cfg.bg,
                 margin: { t: 20, b: 30, l: 40, r: 20 }
             };
 
+            // ---- MAP ----
             let mapProvincesEn = Object.keys(mapAgg);
             let displayGeoJSON = thailandGeoJSON;
             let mapCenter = { lat: 13.0, lon: 100.5 };
@@ -437,66 +527,62 @@
             }
             
             const mapColors = mapProvincesEn.map(pEn => {
-                const v = mapAgg[pEn].vuln;
-                const c = mapAgg[pEn].comp;
+                const v = mapAgg[pEn].vuln, c = mapAgg[pEn].comp;
                 return v > 0 ? (c / v) * 100 : 0; 
             });
 
             const mapHover = mapProvincesEn.map(pEn => {
-                const thName = mapAgg[pEn].thName;
-                const v = mapAgg[pEn].vuln;
-                const c = mapAgg[pEn].comp;
+                const thName = mapAgg[pEn].thName, v = mapAgg[pEn].vuln, c = mapAgg[pEn].comp;
                 const p = v > 0 ? ((c / v) * 100).toFixed(2) : 0;
                 return `<b>${thName}</b><br>เป้าหมาย: ${v.toLocaleString()} คน<br>ดำเนินการแล้ว: ${c.toLocaleString()} คน<br><b>ความสำเร็จ: ${p}%</b>`;
             });
 
             const mapTrace = [{
-                type: 'choroplethmapbox',
-                geojson: displayGeoJSON, 
-                locations: mapProvincesEn, 
-                featureidkey: 'properties.name', 
-                z: mapColors, 
-                colorscale: [[0, '#eff6ff'], [0.25, '#bae6fd'], [0.5, '#38bdf8'], [0.75, '#0284c7'], [1, '#0c4a6e']], 
-                zmin: 0, zmax: 100, 
-                text: mapHover, hoverinfo: 'text',
-                marker: { opacity: 0.85, line: {width: 0.8, color: '#94a3b8'} } 
+                type: 'choroplethmapbox', geojson: displayGeoJSON, locations: mapProvincesEn, 
+                featureidkey: 'properties.name', z: mapColors, 
+                colorscale: [[0, '#eff6ff'], [0.25, '#bae6fd'], [0.5, '#3b82f6'], [0.75, '#1d4ed8'], [1, '#1e3a8a']], 
+                zmin: 0, zmax: 100, text: mapHover, hoverinfo: 'text',
+                marker: { opacity: 0.9, line: {width: 0.5, color: document.documentElement.classList.contains('dark') ? '#334155' : '#cbd5e1'} } 
             }];
 
             const mapLayout = {
-                font: fontConfig, hoverlabel: tooltipConfig,
-                mapbox: { style: 'carto-positron', center: mapCenter, zoom: mapZoom },
+                font: cfg.font, hoverlabel: hoverConfig,
+                mapbox: { style: document.documentElement.classList.contains('dark') ? 'carto-darkmatter' : 'carto-positron', center: mapCenter, zoom: mapZoom },
                 margin: { t: 0, b: 0, l: 0, r: 0 }, coloraxis: { showscale: false },
-                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                paper_bgcolor: cfg.bg, plot_bgcolor: cfg.bg
             };
-
             Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
 
+            // ---- DONUT ----
             const donutTrace = [{
-                values: [sumCompleted, sumPending], labels: ['ดำเนินการแล้ว', 'อยู่ระหว่างดำเนินการ'],
-                type: 'pie', hole: .65, marker: { colors: ['#10b981', '#f59e0b'] },
-                textinfo: 'label+percent', textposition: 'outside', hoverinfo: 'label+value'
+                values: [sumCompleted, sumPending], labels: ['ดำเนินการแล้ว', 'รอดำเนินการ'],
+                type: 'pie', hole: .7, marker: { colors: ['#10b981', '#f59e0b'] },
+                textinfo: 'none', hoverinfo: 'label+value+percent'
             }];
             const donutLayout = { 
-                ...defaultLayout, margin: { t: 20, b: 20, l: 20, r: 20 }, showlegend: false, 
-                annotations: [{ font: { family: "'Prompt', sans-serif", size: 22, weight: 'bold', color: '#1e293b' }, showarrow: false, text: pct + '%' }]
+                ...defaultLayout, margin: { t: 10, b: 10, l: 10, r: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1 },
+                annotations: [{ font: { family: cfg.font.family, size: 24, weight: 'bold', color: cfg.font.color }, showarrow: false, text: pct + '%' }]
             };
             Plotly.react('donut-chart', donutTrace, donutLayout, {responsive: true, displayModeBar: false});
 
+            // ---- BAR (Types) ----
             const types = Object.keys(typeAgg);
-            const typeTrace1 = { x: types, y: types.map(t => typeAgg[t].total), name: 'เป้าหมาย', type: 'bar', marker: { color: '#cbd5e1' } };
-            const typeTrace2 = { x: types, y: types.map(t => typeAgg[t].comp), name: 'ดำเนินการแล้ว', type: 'bar', marker: { color: '#3b82f6' } };
-            const typeLayout = { ...defaultLayout, barmode: 'group', showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0 }, yaxis: { automargin: true } };
+            const typeTrace1 = { x: types, y: types.map(t => typeAgg[t].total), name: 'เป้าหมาย', type: 'bar', marker: { color: document.documentElement.classList.contains('dark') ? '#475569' : '#cbd5e1', borderRadius: 4 } };
+            const typeTrace2 = { x: types, y: types.map(t => typeAgg[t].comp), name: 'ดำเนินการแล้ว', type: 'bar', marker: { color: '#3b82f6', borderRadius: 4 } };
+            const typeLayout = { ...defaultLayout, barmode: 'group', showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0 }, yaxis: { automargin: true, gridcolor: cfg.gridColor }, xaxis: { gridcolor: 'transparent' } };
             Plotly.react('type-chart', [typeTrace1, typeTrace2], typeLayout, {responsive: true, displayModeBar: false});
 
+            // ---- HORIZONTAL BAR (Status) ----
             let sortableStatus = Object.keys(statusAgg).map(k => ({ name: k, val: statusAgg[k] }));
             sortableStatus.sort((a, b) => a.val - b.val); 
             const statusTrace = [{
                 y: sortableStatus.map(s => s.name), x: sortableStatus.map(s => s.val), type: 'bar', orientation: 'h',
-                marker: { color: '#8b5cf6' }, text: sortableStatus.map(s => s.val.toLocaleString()), textposition: 'auto'
+                marker: { color: '#8b5cf6', borderRadius: 4 }, text: sortableStatus.map(s => s.val.toLocaleString()), textposition: 'auto'
             }];
-            const statusLayout = { ...defaultLayout, margin: { t: 10, b: 30, l: 150, r: 20 }, xaxis: { title: 'จำนวน (คน)', automargin: true }, yaxis: { automargin: true } };
+            const statusLayout = { ...defaultLayout, margin: { t: 10, b: 30, l: 180, r: 20 }, xaxis: { title: 'จำนวน (คน)', automargin: true, gridcolor: cfg.gridColor }, yaxis: { automargin: true, gridcolor: 'transparent' } };
             Plotly.react('status-chart', statusTrace, statusLayout, {responsive: true, displayModeBar: false});
 
+            // ---- Bind Events ----
             if (!chartsInitialized) {
                 document.getElementById('map-chart').on('plotly_click', function(data){
                     const clickedProv = data.points[0].location;
@@ -509,19 +595,16 @@
                     }
                     updateDashboard();
                 });
-
                 document.getElementById('type-chart').on('plotly_click', function(data){
                     const clickedType = data.points[0].x;
                     currentFilters.targetType = (currentFilters.targetType === clickedType) ? 'all' : clickedType;
                     updateDashboard();
                 });
-
                 document.getElementById('status-chart').on('plotly_click', function(data){
                     const clickedStatus = data.points[0].y;
                     currentFilters.cleanStatus = (currentFilters.cleanStatus === clickedStatus) ? 'all' : clickedStatus;
                     updateDashboard();
                 });
-
                 chartsInitialized = true;
             }
         }
