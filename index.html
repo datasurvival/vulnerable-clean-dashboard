@@ -38,18 +38,23 @@
         <header class="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
             <div class="flex items-center gap-4">
                 <div class="logo-container shrink-0">
-                    <img src="Asset 5.png" alt="Logo">
+                    <img src="Asset 5.png" alt="Logo" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ministry_of_Social_Development_and_Human_Security_logo.svg/1024px-Ministry_of_Social_Development_and_Human_Security_logo.svg.png'">
                 </div>
                 <div>
                     <h1 class="text-2xl md:text-3xl font-bold text-indigo-900 mb-1">ระบบติดตามการคลีนซิ่งข้อมูลกลุ่มเปราะบางจากระบบ MSO-LOGBOOK</h1>
                     <p class="text-slate-500 font-medium">วิเคราะห์ข้อมูล เด็ก ผู้สูงอายุ และคนพิการ ระดับประเทศและจังหวัด</p>
                 </div>
             </div>
-            <div class="w-full lg:w-80 shrink-0 mt-4 lg:mt-0">
+            <div class="w-full lg:w-[450px] shrink-0 mt-4 lg:mt-0">
                 <label class="block text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> เลือกจังหวัดที่ต้องการดูข้อมูล:</label>
-                <select id="province-select" onchange="onDropdownChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
-                    <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
-                </select>
+                <div class="flex gap-2">
+                    <select id="province-select" onchange="onDropdownChange()" class="w-full border-2 border-indigo-200 rounded-lg px-4 py-2.5 text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 bg-white cursor-pointer shadow-sm">
+                        <option value="all">🇹🇭 ภาพรวมทั้งประเทศ (ทุกจังหวัด)</option>
+                    </select>
+                    <button onclick="downloadPendingCSV()" class="shrink-0 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition flex items-center gap-2" title="ดาวน์โหลดรายชื่อที่รอทำ (CSV)">
+                        <i class="fa-solid fa-file-csv"></i> <span class="hidden sm:inline">โหลดเป้าหมายคงเหลือ</span>
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -108,7 +113,6 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            
             <div class="card lg:col-span-5">
                 <div class="flex justify-between items-center mb-1">
                     <h3 class="text-lg font-bold text-slate-700"><i class="fa-solid fa-map text-indigo-500 mr-2"></i> แผนที่ความสำเร็จรายจังหวัด</h3>
@@ -120,7 +124,6 @@
             </div>
 
             <div class="lg:col-span-7 flex flex-col gap-6">
-                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow">
                     <div class="card">
                         <h3 class="text-md font-bold text-slate-700"><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i> สัดส่วนความคืบหน้า</h3>
@@ -148,22 +151,20 @@
                         <div id="status-chart" class="plotly-graph"></div>
                     </div>
                 </div>
-
             </div>
         </div>
-
     </div>
 
     <script>
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?gid=1784574846&single=true&output=csv';
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
 
-        let globalData = [];
+        let rawRawData = []; // เก็บข้อมูลดิบก่อนลบตัวซ้ำ (เอาไว้ตอน Export)
+        let globalData = []; // ข้อมูลที่คลีน/ลบตัวซ้ำแล้ว ไว้โชว์กราฟ
         let thailandGeoJSON = null;
         let mapCentroids = {}; 
-        let chartsInitialized = false; // เอาไว้เช็คว่าใส่ Event Click หรือยัง
+        let chartsInitialized = false; 
 
-        // 📌 State สำหรับเก็บค่าการกรอง (Cross-Filtering)
         let currentFilters = {
             provinceEn: 'all',
             targetType: 'all',
@@ -177,9 +178,50 @@
             font: { family: "'Prompt', sans-serif", size: 13, color: '#000000' }
         };
 
+        // 📌 ฟังก์ชันจัดการชื่อจังหวัดภาษาอังกฤษ (เพื่อจับคู่กับแผนที่)
         function cleanProvinceName(name) {
             if (!name) return "";
-            return name.replace('จังหวัด', '').replace('จ.', '').replace('กรุงเทพมหานคร', 'กรุงเทพมหานคร').trim();
+            return name.replace('จังหวัด', '').replace('จ.', '').trim();
+        }
+
+        const fixProvinceNames = {
+            "Lopburi": "Lop Buri", "Sisaket": "Si Sa Ket", "Chonburi": "Chon Buri",
+            "Prachinburi": "Prachin Buri", "Suphanburi": "Suphan Buri", "Phetchaburi": "Phetchaburi",
+            "Bangkok": "Krung Thep Maha Nakhon", "Bangkok Metropolis": "Krung Thep Maha Nakhon"
+        };
+
+        // 📌 ฟังก์ชันลบตัวซ้ำและให้ความสำคัญกับ "ดำเนินการแล้ว"
+        function processDataLogic(dataArr) {
+            const uniqueMap = new Map();
+
+            dataArr.forEach(row => {
+                // สมมติว่ามีคอลัมน์รหัสสมาชิก (ถ้าชื่อคอลัมน์ใน CSV ต่างไปจากนี้ ให้เปลี่ยนชื่อตรงวงเล็บ)
+                const memberId = (row['รหัสสมาชิกครัวเรือน'] || row['รหัสสมาชิก'] || "").trim();
+                const type = (row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || "").trim();
+                
+                // สร้าง Key สำหรับเช็คซ้ำ (รหัสสมาชิก + ประเภทกลุ่มเป้าหมาย)
+                const uniqueKey = `${memberId}_${type}`;
+                
+                const isCompleted = parseInt(row['จำนวนที่ดำเนินการแล้ว'] || 0, 10) > 0;
+
+                // ถ้ามีข้อมูลนี้อยู่แล้วใน Map ให้มาเช็คสถานะ
+                if (uniqueMap.has(uniqueKey)) {
+                    const existingData = uniqueMap.get(uniqueKey);
+                    const existingCompleted = existingData.completed > 0;
+                    
+                    // ถ้ารายการใหม่เป็น "ดำเนินการแล้ว" แต่รายการเก่าไม่ใช่ ให้ทับรายการเก่า
+                    if (isCompleted && !existingCompleted) {
+                        uniqueMap.set(uniqueKey, row);
+                    }
+                    // ถ้ารายการเก่าทำแล้ว หรือทั้งคู่เหมือนกัน ก็ปล่อยผ่าน (เก็บอันที่สำเร็จไว้)
+                } else {
+                    // ถ้ายังไม่มีในระบบเลย ก็จับใส่ Map
+                    uniqueMap.set(uniqueKey, row);
+                }
+            });
+
+            // คืนค่ากลับเป็น Array เฉพาะรายการที่รอดชีวิตจากการคัดกรอง
+            return Array.from(uniqueMap.values());
         }
 
         async function initDashboard() {
@@ -204,21 +246,32 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: function(results) {
-                        globalData = results.data.map(row => {
-                            const rawProvEn = (row['จังหวัด'] || "").trim();
-                            const rawProvTh = (row['ชื่อจังหวัดภาษาไทย'] || rawProvEn).trim();
+                        // เก็บข้อมูลทั้งหมดไว้ (ใช้ทำ CSV ภายหลัง)
+                        rawRawData = results.data;
+                        
+                        // 📌 1. เข้าสู่กระบวนการลบตัวซ้ำ
+                        const cleanedData = processDataLogic(rawRawData);
+
+                        // 📌 2. แปลงข้อมูลพร้อมใช้งานสำหรับกราฟ
+                        globalData = cleanedData.map(row => {
+                            let rawProvEn = cleanProvinceName(row['จังหวัด'] || row['province'] || "");
+                            if (fixProvinceNames[rawProvEn]) rawProvEn = fixProvinceNames[rawProvEn];
+                            
+                            const rawProvTh = (row['ชื่อจังหวัดภาษาไทย'] || row['จังหวัดภาษาไทย'] || rawProvEn).trim();
+                            
                             return {
+                                memberId: (row['รหัสสมาชิกครัวเรือน'] || row['รหัสสมาชิก'] || "").trim(),
                                 provinceEn: rawProvEn,
                                 provinceTh: rawProvTh,
                                 targetType: row['ประเภท'] || row['ประเภทกลุ่มเป้าหมาย'] || 'ไม่ระบุ', 
                                 cleanStatus: row['สถานะข้อมูล'] || 'ไม่ระบุ',
-                                totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 0, 10),
+                                totalVulnerable: parseInt(row['จำนวนคนเปราะบาง'] || 1, 10), // ถ้ารายคนจะถือเป็น 1
                                 completed: parseInt(row['จำนวนที่ดำเนินการแล้ว'] || 0, 10)
                             };
                         }).filter(row => row.provinceEn !== "");
 
                         populateDropdown();
-                        updateDashboard(); // วาดทุกกราฟ
+                        updateDashboard(); 
                         
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('main-content').style.display = 'block';
@@ -229,6 +282,46 @@
                     }
                 });
             } catch (error) { console.error(error); }
+        }
+
+        // 📌 ฟังก์ชันดาวน์โหลดข้อมูลเป้าหมายคงเหลือ (เป็น CSV)
+        function downloadPendingCSV() {
+            // ดึงจังหวัดที่ User เลือกอยู่
+            const selectedProvEn = document.getElementById('province-select').value;
+            
+            // กรองข้อมูลที่:
+            // 1. เป็นของจังหวัดที่เลือก (หรือถ้าเลือก All ก็เอาหมด)
+            // 2. จำนวนที่ดำเนินการแล้ว = 0 (ยังไม่เสร็จ)
+            const pendingData = globalData.filter(d => {
+                const matchProv = (selectedProvEn === 'all' || d.provinceEn === selectedProvEn);
+                const isPending = d.completed === 0;
+                return matchProv && isPending;
+            });
+
+            if (pendingData.length === 0) {
+                alert('🎉 ไม่มีรายการที่รอดำเนินการในเงื่อนไขที่เลือกครับ!');
+                return;
+            }
+
+            // เตรียมข้อมูลทำ CSV (ปรับชื่อคอลัมน์ได้ตามต้องการ)
+            let csvContent = "รหัสสมาชิก,จังหวัด,ประเภทกลุ่มเป้าหมาย,สถานะคลีนซิ่งข้อมูล\n"; // Header
+            
+            pendingData.forEach(row => {
+                // ใส่ "" คล่อมข้อมูลเพื่อป้องกันปัญหาตอนเปิดใน Excel (เผื่อมีเครื่องหมายคอมม่าในข้อความ)
+                csvContent += `"${row.memberId}","${row.provinceTh}","${row.targetType}","${row.cleanStatus}"\n`;
+            });
+
+            // สร้างไฟล์แล้วดาวน์โหลด (ต้องใช้ BOM เพื่อให้ Excel อ่านไทยได้)
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            const provName = selectedProvEn === 'all' ? "ภาพรวม" : pendingData[0].provinceTh;
+            link.setAttribute("href", url);
+            link.setAttribute("download", `รายการเป้าหมายคงเหลือ_${provName}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function populateDropdown() {
@@ -245,20 +338,17 @@
             });
         }
 
-        // ฟังก์ชันเมื่อเปลี่ยน Dropdown
         function onDropdownChange() {
             currentFilters.provinceEn = document.getElementById('province-select').value;
             updateDashboard();
         }
 
-        // ฟังก์ชันล้างตัวกรองทั้งหมด
         function clearAllFilters() {
             currentFilters = { provinceEn: 'all', targetType: 'all', cleanStatus: 'all' };
             document.getElementById('province-select').value = 'all';
             updateDashboard();
         }
 
-        // 📌 อัปเดตแถบ UI ด้านบนว่ากำลัง Filter อะไรอยู่บ้าง
         function updateFilterIndicator() {
             const indicator = document.getElementById('filter-indicator');
             const textEl = document.getElementById('filter-text');
@@ -285,9 +375,7 @@
             }
         }
 
-        // 📌 ฟังก์ชันหลัก: กรองข้อมูลและวาดกราฟทั้งหมด
         function updateDashboard() {
-            // 1. กรองข้อมูลตามเงื่อนไข (Cross-Filtering)
             let filteredData = globalData.filter(d => {
                 let matchProv = (currentFilters.provinceEn === 'all' || d.provinceEn === currentFilters.provinceEn);
                 let matchType = (currentFilters.targetType === 'all' || d.targetType === currentFilters.targetType);
@@ -303,7 +391,6 @@
             const statusAgg = {}; 
             const mapAgg = {};
 
-            // 2. จัดกลุ่มข้อมูลที่ถูกกรองแล้ว
             filteredData.forEach(d => {
                 sumTotal += d.totalVulnerable;
                 sumCompleted += d.completed;
@@ -322,7 +409,6 @@
                 mapAgg[d.provinceEn].comp += d.completed;
             });
 
-            // 3. วาด KPI
             const sumPending = sumTotal - sumCompleted;
             const pct = sumTotal > 0 ? ((sumCompleted / sumTotal) * 100).toFixed(2) : 0;
             document.getElementById('kpi-total').innerText = sumTotal.toLocaleString();
@@ -337,13 +423,11 @@
                 margin: { t: 20, b: 30, l: 40, r: 20 }
             };
 
-            // ------------------ 4. วาดแผนที่ ------------------
             let mapProvincesEn = Object.keys(mapAgg);
             let displayGeoJSON = thailandGeoJSON;
             let mapCenter = { lat: 13.0, lon: 100.5 };
             let mapZoom = 4.5;
 
-            // ถ้าเลือกจังหวัด ให้ตัด GeoJSON เหลือชิ้นเดียวและซูม
             if (currentFilters.provinceEn !== 'all') {
                 displayGeoJSON = { type: "FeatureCollection", features: thailandGeoJSON.features.filter(f => f.properties.name === currentFilters.provinceEn) };
                 if (mapCentroids[currentFilters.provinceEn]) {
@@ -387,7 +471,6 @@
 
             Plotly.react('map-chart', mapTrace, mapLayout, {responsive: true, displayModeBar: false});
 
-            // ------------------ 5. วาดโดนัท ------------------
             const donutTrace = [{
                 values: [sumCompleted, sumPending], labels: ['ดำเนินการแล้ว', 'อยู่ระหว่างดำเนินการ'],
                 type: 'pie', hole: .65, marker: { colors: ['#10b981', '#f59e0b'] },
@@ -399,14 +482,12 @@
             };
             Plotly.react('donut-chart', donutTrace, donutLayout, {responsive: true, displayModeBar: false});
 
-            // ------------------ 6. วาดแท่งเป้าหมาย ------------------
             const types = Object.keys(typeAgg);
             const typeTrace1 = { x: types, y: types.map(t => typeAgg[t].total), name: 'เป้าหมาย', type: 'bar', marker: { color: '#cbd5e1' } };
             const typeTrace2 = { x: types, y: types.map(t => typeAgg[t].comp), name: 'ดำเนินการแล้ว', type: 'bar', marker: { color: '#3b82f6' } };
             const typeLayout = { ...defaultLayout, barmode: 'group', showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0 }, yaxis: { automargin: true } };
             Plotly.react('type-chart', [typeTrace1, typeTrace2], typeLayout, {responsive: true, displayModeBar: false});
 
-            // ------------------ 7. วาดสถานะคลีนซิ่ง ------------------
             let sortableStatus = Object.keys(statusAgg).map(k => ({ name: k, val: statusAgg[k] }));
             sortableStatus.sort((a, b) => a.val - b.val); 
             const statusTrace = [{
@@ -416,14 +497,11 @@
             const statusLayout = { ...defaultLayout, margin: { t: 10, b: 30, l: 150, r: 20 }, xaxis: { title: 'จำนวน (คน)', automargin: true }, yaxis: { automargin: true } };
             Plotly.react('status-chart', statusTrace, statusLayout, {responsive: true, displayModeBar: false});
 
-            // ------------------ 8. ใส่ Event Click ให้กราฟ (ทำแค่ครั้งแรก) ------------------
             if (!chartsInitialized) {
-                
-                // คลิกแผนที่ -> กรองจังหวัด
                 document.getElementById('map-chart').on('plotly_click', function(data){
                     const clickedProv = data.points[0].location;
                     if (currentFilters.provinceEn === clickedProv) {
-                        currentFilters.provinceEn = 'all'; // คลิกซ้ำเพื่อยกเลิก
+                        currentFilters.provinceEn = 'all';
                         document.getElementById('province-select').value = 'all';
                     } else {
                         currentFilters.provinceEn = clickedProv;
@@ -432,14 +510,12 @@
                     updateDashboard();
                 });
 
-                // คลิกกราฟกลุ่มเป้าหมาย -> กรองประเภท (เด็ก, คนแก่)
                 document.getElementById('type-chart').on('plotly_click', function(data){
                     const clickedType = data.points[0].x;
                     currentFilters.targetType = (currentFilters.targetType === clickedType) ? 'all' : clickedType;
                     updateDashboard();
                 });
 
-                // คลิกกราฟสถานะ -> กรองสถานะ (Idผิด, ตาย, ฯลฯ)
                 document.getElementById('status-chart').on('plotly_click', function(data){
                     const clickedStatus = data.points[0].y;
                     currentFilters.cleanStatus = (currentFilters.cleanStatus === clickedStatus) ? 'all' : clickedStatus;
