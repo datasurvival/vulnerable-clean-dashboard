@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th" class="light">
+<html lang="th" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,8 +18,8 @@
                 extend: {
                     fontFamily: { sans: ['Kanit', 'sans-serif'] },
                     colors: {
-                        primary: '#1e40af', // Blue 800
-                        secondary: '#3b82f6', // Blue 500
+                        primary: '#1e40af',
+                        secondary: '#3b82f6',
                     }
                 }
             }
@@ -29,7 +29,6 @@
     <style>
         body { font-family: 'Kanit', sans-serif; }
         
-        /* Glassmorphism Cards */
         .glass-card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -43,18 +42,15 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
         
-        /* Dark Mode Cards */
         .dark .glass-card {
-            background: rgba(30, 41, 59, 0.95); /* slate-800 */
+            background: rgba(30, 41, 59, 0.95);
             border-color: rgba(255, 255, 255, 0.05);
         }
 
-        /* Wrappers สำหรับ Plotly */
         .chart-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 300px; margin-top: 1rem; }
         .map-wrapper { position: relative; width: 100%; flex-grow: 1; min-height: 500px; margin-top: 1rem; }
         .plotly-graph { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-        /* Loader */
         #loading { 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
             height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; z-index: 50; 
@@ -62,7 +58,6 @@
         }
         .dark #loading { background: rgba(15, 23, 42, 0.95); }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -85,7 +80,7 @@
         <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8 pb-6 border-b border-slate-200 dark:border-slate-700 relative">
             
             <button id="themeToggle" class="absolute top-0 right-0 w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center transition shadow-sm" title="สลับโหมดกลางคืน">
-                <i id="themeIcon" class="fa-solid fa-moon"></i>
+                <i id="themeIcon" class="fa-solid fa-sun"></i>
             </button>
 
             <div class="flex items-center gap-5 mt-4 lg:mt-0">
@@ -244,17 +239,21 @@
 
     <script>
         // -------------------------------------------------------------
-        // 🌙 ระบบ Dark Mode
+        // 🌙 ระบบ Dark Mode — ค่าเริ่มต้นเป็น dark เสมอ
         // -------------------------------------------------------------
         const themeToggleBtn = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         const htmlEl = document.documentElement;
 
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            htmlEl.classList.add('dark');
-            themeIcon.classList.replace('fa-moon', 'fa-sun');
-        } else {
+        // ถ้าเคยบันทึกธีมไว้แล้วให้ใช้ตามนั้น ถ้ายังไม่เคยตั้ง ให้ใช้ dark เป็น default
+        if (localStorage.theme === 'light') {
             htmlEl.classList.remove('dark');
+            themeIcon.className = 'fa-solid fa-moon';
+        } else {
+            // dark เป็นค่าเริ่มต้น (ครอบคลุมทั้ง localStorage.theme === 'dark' และยังไม่เคยตั้งค่า)
+            htmlEl.classList.add('dark');
+            localStorage.theme = 'dark';
+            themeIcon.className = 'fa-solid fa-sun';
         }
 
         themeToggleBtn.addEventListener('click', function() {
@@ -263,12 +262,11 @@
             localStorage.theme = isDark ? 'dark' : 'light';
             themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
             
-            // Re-render charts เพื่อเปลี่ยนสีฟอนต์ให้เข้ากับธีม
             if(globalData.length > 0) updateDashboard(); 
         });
 
         // -------------------------------------------------------------
-        // 📊 Logic ของแดชบอร์ด (ยกมาจากของเดิมทั้งหมด)
+        // 📊 Logic ของแดชบอร์ด
         // -------------------------------------------------------------
         const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT67r-W0wEcuy5DNdjy8HMDip2AbOYbyIGU41gpvrcqv_H9OKc9fp2mHb0FK7XB-jWjfnrvycmaD3dj/pub?output=csv';
         const GEOJSON_URL = 'https://raw.githubusercontent.com/apisit/thailand.json/master/thailand.json';
@@ -281,7 +279,6 @@
 
         let currentFilters = { provinceEn: 'all', targetType: 'all', cleanStatus: 'all' };
 
-        // ฟังก์ชันช่วยจัดการสีตาม Theme
         function getChartConfig() {
             const isDark = document.documentElement.classList.contains('dark');
             return {
@@ -411,7 +408,7 @@
             sortedProvinces.forEach(([en, th]) => {
                 const opt = document.createElement('option');
                 opt.value = en;
-                opt.textContent = th; // เอาอิโมจิออก ให้ดูคลีนๆ
+                opt.textContent = th;
                 select.appendChild(opt);
             });
         }
